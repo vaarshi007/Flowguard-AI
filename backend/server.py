@@ -2,10 +2,10 @@
 Flowguard-AI Backend API & SQLite Database Server
 
 Features:
-- Volume in ml and Flow Rate in ml/min.
-- Bed Node Management (Add, Update, Discharge/Remove Bed).
-- CSV / Excel Clinical Audit Report Exporter (detailed patient infusion logs, flow rates, occlusion duration, alert informed status).
-- 1 ESP32 Hardware Node = 1 Saline Bed = 1 Blynk Auth Code mapping.
+- Fixed Alert Clearing on Bottle Refill / Reset.
+- Nurse Editing & Duty Status Management (`PUT /api/nurses/{nurse_id}`).
+- Interactive 3D Model & Continuous Audio Alert Support.
+- SQLite Database Persistence.
 """
 
 from fastapi import FastAPI, HTTPException, Response
@@ -23,8 +23,8 @@ DB_FILE = os.path.join(os.path.dirname(__file__), "flowguard.db")
 
 app = FastAPI(
     title="Flowguard-AI API Server",
-    description="Backend Server & SQLite Database for IV Fluid Monitoring",
-    version="1.1.0"
+    description="Backend Server & SQLite Database for Flowguard-AI Clinical Dashboard",
+    version="2.2.0"
 )
 
 app.add_middleware(
@@ -39,11 +39,37 @@ def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
 
-    # Beds Table
+    # Nurses Table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS nurses (
+            nurse_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            shift TEXT DEFAULT 'Morning (07:00 - 15:00)',
+            contact TEXT DEFAULT '',
+            status TEXT DEFAULT 'On Duty',
+            assigned_beds_count INTEGER DEFAULT 0
+        )
+    """)
+
+    # Doctors Table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS doctors (
+            doc_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            specialty TEXT DEFAULT 'Intensive Care Unit (ICU)',
+            contact TEXT DEFAULT '',
+            status TEXT DEFAULT 'Available'
+        )
+    """)
+
+    # Beds & Patient Records Table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS beds (
             bed_id TEXT PRIMARY KEY,
             patient_name TEXT NOT NULL,
+            age_gender TEXT DEFAULT '45/M',
+            doctor_name TEXT DEFAULT 'Dr. Petra Winburry',
+            assigned_nurse TEXT DEFAULT 'Nurse Aishani',
             room_no TEXT NOT NULL,
             fluid_type TEXT NOT NULL,
             full_volume_ml REAL DEFAULT 500.0,
@@ -72,7 +98,7 @@ def init_db():
         )
     """)
 
-    # Alert Audit Logs Table
+    # Alert Logs Table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS alert_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,31 +115,68 @@ def init_db():
         )
     """)
 
-    # Seed initial beds if empty
+    # Seed Default Nurses if empty
+    cursor.execute("SELECT COUNT(*) FROM nurses")
+    if cursor.fetchone()[0] == 0:
+        default_nurses = [
+            ("NURSE-01", "Nurse Aishani", "Morning (07:00 - 15:00)", "+91 98765 43210", "On Duty", 2),
+            ("NURSE-02", "Nurse Tejaswini", "Evening (15:00 - 23:00)", "+91 98765 43211", "On Duty", 1),
+            ("NURSE-03", "Nurse Durga", "Night (23:00 - 07:00)", "+91 98765 43212", "On Standby", 0)
+        ]
+        cursor.executemany("""
+            INSERT INTO nurses (nurse_id, name, shift, contact, status, assigned_beds_count)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, default_nurses)
+
+    # Seed Default Doctors if empty
+    cursor.execute("SELECT COUNT(*) FROM doctors")
+    if cursor.fetchone()[0] == 0:
+        default_docs = [
+            ("DOC-01", "Dr. Petra Winburry", "Chief Intensivist (ICU)", "+91 98111 22334", "Available"),
+            ("DOC-02", "Dr. Rajesh Kumar", "General Medicine Lead", "+91 98111 22335", "In Surgery"),
+            ("DOC-03", "Dr. Ananya Roy", "Pediatric Care Specialist", "+91 98111 22336", "Available")
+        ]
+        cursor.executemany("""
+            INSERT INTO doctors (doc_id, name, specialty, contact, status)
+            VALUES (?, ?, ?, ?, ?)
+        """, default_docs)
+
+    # Seed Default Beds if empty
     cursor.execute("SELECT COUNT(*) FROM beds")
     if cursor.fetchone()[0] == 0:
         default_beds = [
-            ("ICU-01", "A. Sharma (Bed 104)", "ICU Room 104", "Saline 0.9% (500ml)", 500.0, 442.5, 88.5, 4.6, 96, "NORMAL", "DEMO_TOKEN_1"),
-            ("ICU-02", "R. Verma (Bed 108)", "ICU Room 108", "Dextrose 5% (500ml)", 500.0, 22.0, 4.4, 5.1, 4, "CRITICAL_LOW", "DEMO_TOKEN_2"),
-            ("ICU-03", "K. Patel (Bed 112)", "ICU Room 112", "Ringer's Lactate (1000ml)", 1000.0, 780.0, 78.0, 0.0, 999, "BLOCKED", "DEMO_TOKEN_3")
+            ("ICU-01", "A. Sharma", "52/M", "Dr. Petra Winburry", "Nurse Aishani", "ICU Room 104", "Saline 0.9% (500ml)", 500.0, 442.5, 88.5, 4.6, 96, "NORMAL", "DEMO_TOKEN_1"),
+            ("ICU-02", "R. Verma", "38/F", "Dr. Petra Winburry", "Nurse Aishani", "ICU Room 108", "Dextrose 5% (500ml)", 500.0, 22.0, 4.4, 5.1, 4, "CRITICAL_LOW", "DEMO_TOKEN_2"),
+            ("ICU-03", "K. Patel", "61/M", "Dr. Rajesh Kumar", "Nurse Tejaswini", "ICU Room 112", "Ringer's Lactate (1000ml)", 1000.0, 780.0, 78.0, 0.0, 999, "BLOCKED", "DEMO_TOKEN_3")
         ]
         cursor.executemany("""
-            INSERT INTO beds (bed_id, patient_name, room_no, fluid_type, full_volume_ml, current_volume_ml, percentage, flow_rate_mlm, tte_minutes, status, blynk_token)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO beds (bed_id, patient_name, age_gender, doctor_name, assigned_nurse, room_no, fluid_type, full_volume_ml, current_volume_ml, percentage, flow_rate_mlm, tte_minutes, status, blynk_token)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, default_beds)
-        conn.commit()
 
+    conn.commit()
     conn.close()
 
 init_db()
 
+# --- Data Models ---
 class BedCreate(BaseModel):
     bed_id: str
     patient_name: str
+    age_gender: Optional[str] = "45/M"
+    doctor_name: Optional[str] = "Dr. Petra Winburry"
+    assigned_nurse: Optional[str] = "Nurse Aishani"
     room_no: str
     fluid_type: str
     full_volume_ml: float = 500.0
     blynk_token: Optional[str] = ""
+
+class NurseCreate(BaseModel):
+    nurse_id: str
+    name: str
+    shift: str
+    contact: str
+    status: str = "On Duty"
 
 class TelemetryIngest(BaseModel):
     bed_id: str
@@ -127,9 +190,58 @@ class AlertAcknowledge(BaseModel):
     alert_id: int
     nurse_name: str
 
+# --- API Endpoints ---
+
 @app.get("/api/health")
 def health_check():
-    return {"status": "online", "database": "sqlite", "version": "1.1.0"}
+    return {"status": "online", "database": "sqlite", "brand": "Flowguard-AI", "version": "2.2.0"}
+
+@app.get("/api/nurses")
+def get_nurses():
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM nurses")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+@app.post("/api/nurses")
+def add_or_update_nurse(nurse: NurseCreate):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO nurses (nurse_id, name, shift, contact, status)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(nurse_id) DO UPDATE SET
+            name=excluded.name, shift=excluded.shift, contact=excluded.contact, status=excluded.status
+    """, (nurse.nurse_id, nurse.name, nurse.shift, nurse.contact, nurse.status))
+    conn.commit()
+    conn.close()
+    return {"message": f"Nurse {nurse.name} saved successfully"}
+
+@app.put("/api/nurses/{nurse_id}")
+def update_nurse(nurse_id: str, nurse: NurseCreate):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE nurses SET
+            name = ?, shift = ?, contact = ?, status = ?
+        WHERE nurse_id = ?
+    """, (nurse.name, nurse.shift, nurse.contact, nurse.status, nurse_id))
+    conn.commit()
+    conn.close()
+    return {"message": f"Nurse {nurse_id} updated successfully"}
+
+@app.get("/api/doctors")
+def get_doctors():
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM doctors")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
 
 @app.get("/api/beds")
 def get_all_beds():
@@ -146,16 +258,26 @@ def add_or_update_bed(bed: BedCreate):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO beds (bed_id, patient_name, room_no, fluid_type, full_volume_ml, current_volume_ml, percentage, blynk_token, last_updated)
-        VALUES (?, ?, ?, ?, ?, ?, 100.0, ?, CURRENT_TIMESTAMP)
+        INSERT INTO beds (
+            bed_id, patient_name, age_gender, doctor_name, assigned_nurse, 
+            room_no, fluid_type, full_volume_ml, current_volume_ml, percentage, blynk_token, last_updated
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 100.0, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(bed_id) DO UPDATE SET
             patient_name=excluded.patient_name,
+            age_gender=excluded.age_gender,
+            doctor_name=excluded.doctor_name,
+            assigned_nurse=excluded.assigned_nurse,
             room_no=excluded.room_no,
             fluid_type=excluded.fluid_type,
             full_volume_ml=excluded.full_volume_ml,
+            current_volume_ml=excluded.full_volume_ml,
+            percentage=100.0,
             blynk_token=excluded.blynk_token,
             last_updated=CURRENT_TIMESTAMP
-    """, (bed.bed_id, bed.patient_name, bed.room_no, bed.fluid_type, bed.full_volume_ml, bed.full_volume_ml, bed.blynk_token))
+    """, (
+        bed.bed_id, bed.patient_name, bed.age_gender, bed.doctor_name, bed.assigned_nurse,
+        bed.room_no, bed.fluid_type, bed.full_volume_ml, bed.full_volume_ml, bed.blynk_token
+    ))
     conn.commit()
     conn.close()
     return {"message": f"Bed {bed.bed_id} saved successfully"}
@@ -210,11 +332,18 @@ def ingest_telemetry(data: TelemetryIngest):
                     UPDATE alert_logs SET blocked_duration_mins = blocked_duration_mins + 1
                     WHERE id = ?
                 """, (existing[0],))
+    elif data.status == "NORMAL":
+        # Resolve active alerts if status returned to NORMAL
+        cursor.execute("""
+            UPDATE alert_logs SET resolved_at = CURRENT_TIMESTAMP
+            WHERE bed_id = ? AND resolved_at IS NULL
+        """, (data.bed_id,))
 
     conn.commit()
     conn.close()
     return {"status": "success"}
 
+# --- Reset Bottle / Refill Endpoint (Clears Active Alerts) ---
 @app.post("/api/beds/{bed_id}/reset-full")
 def reset_bottle_full(bed_id: str):
     conn = sqlite3.connect(DB_FILE)
@@ -227,6 +356,7 @@ def reset_bottle_full(bed_id: str):
 
     full_vol, token = row[0], row[1]
     
+    # 1. Reset Bed to NORMAL and 100% Volume
     cursor.execute("""
         UPDATE beds SET
             current_volume_ml = full_volume_ml,
@@ -236,6 +366,7 @@ def reset_bottle_full(bed_id: str):
         WHERE bed_id = ?
     """, (bed_id,))
     
+    # 2. Immediately Resolve & Clear Active Alert Logs for this bed!
     cursor.execute("""
         UPDATE alert_logs SET resolved_at = CURRENT_TIMESTAMP
         WHERE bed_id = ? AND resolved_at IS NULL
@@ -250,7 +381,7 @@ def reset_bottle_full(bed_id: str):
         except Exception:
             pass
 
-    return {"message": f"Bed {bed_id} reset to 100% full", "full_volume_ml": full_vol}
+    return {"message": f"Bed {bed_id} reset to 100% full and alert cleared!", "full_volume_ml": full_vol}
 
 @app.get("/api/alerts")
 def get_alerts():
@@ -258,10 +389,14 @@ def get_alerts():
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT a.id, a.bed_id, b.patient_name, b.room_no, a.alert_type, a.severity, 
-               a.created_at, a.blocked_duration_mins, a.acknowledged, a.acknowledged_by, a.acknowledged_at
+        SELECT a.id, a.bed_id, 
+               COALESCE(b.patient_name, 'Patient') AS patient_name, 
+               COALESCE(b.assigned_nurse, 'Nurse Aishani') AS assigned_nurse, 
+               COALESCE(b.room_no, 'ICU Ward') AS room_no, 
+               a.alert_type, a.severity, 
+               a.created_at, a.blocked_duration_mins, a.acknowledged, a.acknowledged_by, a.acknowledged_at, a.resolved_at
         FROM alert_logs a
-        JOIN beds b ON a.bed_id = b.bed_id
+        LEFT JOIN beds b ON a.bed_id = b.bed_id
         ORDER BY a.id DESC LIMIT 50
     """)
     rows = cursor.fetchall()
@@ -283,7 +418,6 @@ def acknowledge_alert(payload: AlertAcknowledge):
     conn.close()
     return {"message": f"Alert {payload.alert_id} acknowledged"}
 
-# --- Export CSV / Excel Clinical Audit Report Endpoint ---
 @app.get("/api/reports/export-csv")
 def export_clinical_report_csv():
     conn = sqlite3.connect(DB_FILE)
@@ -294,6 +428,9 @@ def export_clinical_report_csv():
         SELECT 
             b.bed_id,
             b.patient_name,
+            b.age_gender,
+            b.doctor_name,
+            b.assigned_nurse,
             b.room_no,
             b.fluid_type,
             b.current_volume_ml,
@@ -317,12 +454,11 @@ def export_clinical_report_csv():
     output = io.StringIO()
     writer = csv.writer(output)
 
-    # Headers
     writer.writerow([
-        "Bed ID", "Patient Name", "Room No", "Fluid Type",
-        "Current Volume (ml)", "Full Volume (ml)", "Infusion Flow Rate (ml/min)",
-        "Est Time-To-Empty (mins)", "Current Status", "Alert Type",
-        "Blocked Duration (mins)", "Informed / Nurse Ack Status", "Last Recorded Time"
+        "Bed ID", "Patient Name", "Age/Gender", "Attending Doctor", "Assigned Nurse",
+        "Room No", "Fluid Type", "Current Volume (ml)", "Full Volume (ml)",
+        "Infusion Flow Rate (ml/min)", "Est Time-To-Empty (mins)", "Status",
+        "Last Alert Type", "Blocked Duration (mins)", "Nurse Informed / Ack Status", "Last Updated"
     ])
 
     for row in rows:
@@ -331,6 +467,9 @@ def export_clinical_report_csv():
         writer.writerow([
             r['bed_id'],
             r['patient_name'],
+            r['age_gender'],
+            r['doctor_name'],
+            r['assigned_nurse'],
             r['room_no'],
             r['fluid_type'],
             f"{r['current_volume_ml']:.1f}",
