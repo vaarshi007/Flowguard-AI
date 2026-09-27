@@ -1,0 +1,118 @@
+/* Custom Styles & Visual IV Saline Bottle Animations */
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Saline Bottle Visual Representation */
+.iv-bottle-container {
+  position: relative;
+  width: 70px;
+  height: 120px;
+  border: 3px solid #475569;
+  border-radius: 12px 12px 28px 28px;
+  background: rgba(15, 23, 42, 0.6);
+  overflow: hidden;
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+}
+
+.iv-bottle-cap {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 8px;
+  background: #0284c7;
+  border-radius: 3px;
+  z-index: 10;
+}
+
+.iv-bottle-liquid {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.7) 0%, rgba(14, 165, 233, 0.9) 100%);
+  transition: height 0.8s ease-in-out;
+}
+
+/* Drip Animation in Tube */
+.iv-drip-line {
+  position: relative;
+  width: 3px;
+  height: 35px;
+  background: rgba(148, 163, 184, 0.3);
+  margin: 0 auto;
+}
+
+.iv-drip-drop {
+  position: absolute;
+  width: 5px;
+  height: 7px;
+  background: #38bdf8;
+  border-radius: 50%;
+  left: -1px;
+  animation: dripFall 1.2s infinite ease-in;
+}
+
+@keyframes dripFall {
+  0% {
+    top: 0;
+    opacity: 1;
+    transform: scale(1);
+  }
+  80% {
+    opacity: 0.8;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+/* Pulse Animations for Critical Alerts */
+.pulse-glow-red {
+  animation: pulseRed 1.8s infinite;
+}
+
+@keyframes pulseRed {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(239, 68, 68, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+.pulse-glow-amber {
+  animation: pulseAmber 1.8s infinite;
+}
+
+@keyframes pulseAmber {
+  0% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(245, 158, 11, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+  }
+}

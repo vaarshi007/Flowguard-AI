@@ -1,0 +1,864 @@
+================================================================================
+FILE: AI-Driven-IV-Fluid-Monitoring-and-Smart-Alert-System.pptx.pdf
+================================================================================
+Total pages: 8
+
+--- Page 1 ---
+AI-Driven IV Fluid 
+Monitoring and Smart Alert 
+System
+Proactive Smart Alerts for Resource-Constrained Healthcare
+Innovation in adoption of Industry 4.0 & 5.0 for MSME healthcare — Medical Devices & 
+Healthcare IoT
+DONE BY:
+Aishani Gaverineni - 24EU04133
+Tejaswini Buthukuri - 24EU04140
+Durga Madhav Chandra Vemulapalli - 24EU04193
+
+--- Page 2 ---
+Problem Statement & Objectives
+The Problem
+• Manual IV monitoring lets empty bags go unnoticed → increased risk 
+of air embolism.
+• Current systems are reactive: loud ward alarms that contribute to 
+alarm fatigue and disrupted care.
+• Proprietary pumps and cloud-dependent systems are costly and 
+unsuitable for under-resourced MSME hospitals.
+Objectives
+• Predictive Safety — detect anomalies before a critical event.
+• Targeted Alerts — replace loud buzzers with silent, mobile triage 
+notiﬁcations.
+• Cost-Effective — retroﬁt approach to bring smart monitoring to 
+MSME hospitals.
+
+--- Page 3 ---
+Proposed Solution vs Existing Systems
+Feature Existing Systems Our Innovation
+Detection Reactive — triggers only when IV is 
+empty
+Predictive — Edge AI anticipates 
+empty/ﬂow issues
+Alert Type Loud ward buzzers (disruptive) Silent mobile push notiﬁcations to triage
+Cost High — proprietary pumps and licensing Low — retroﬁt IoT node using 
+off-the-shelf parts
+Latency High — cloud-dependent delays Near-zero — on-device Edge computing
+
+--- Page 4 ---
+Five-Step Workﬂow (Process Flow)
+1. Sense
+Load cell measures ﬂuid weight continuously on the IV pole.
+2. Amplify
+HX711 converts analog load-cell output to precise digital readings.
+3. Analyze
+ESP32 ingests time-series data and runs TinyML models locally.
+4. Predict
+AI classiﬁes ﬂow: Normal, Blocked, or Rapidly Emptying — early anomaly detection.
+5. Alert
+Blynk cloud relays targeted silent pushes to nursing mobile apps — avoids ward-wide buzzers.
+
+--- Page 5 ---
+System Architecture — Three Pillars
+Hardware
+ESP32 microcontroller • 1kg Load Cell • HX711 • 3D 
+printed mounts for universal retroﬁt
+Software
+C++ (Arduino) for ﬁrmware • TinyML models via Edge 
+Impulse • Local inference pipeline
+Cloud & Mobile
+Blynk IoT server for device management & mobile 
+push — mobile UI for nurse triage (iOS/Android)
+
+--- Page 6 ---
+Results & Market Analysis
+Expected Clinical Impact
+• Near-elimination of air-embolism events by early detection and 
+intervention.
+• Up to 40% reduction in ward alarm noise through targeted mobile 
+alerts.
+• Enables affordable, scalable monitoring for Tier-2/Tier-3 hospitals 
+and rural clinics.
+Market Opportunity
+Large addressable market in under-resourced MSME hospitals where expensive smart 
+pumps are unaffordable. Retroﬁt strategy lowers barrier to adoption and accelerates 
+impact.
+Current Market: 85% manual IVs remain unmonitored — a clear entry 
+point for low-cost edge solutions.
+Chart explains market composition and highlights the workﬂow: sensing → edge inference → mobile triage → clinical intervention.
+
+--- Page 7 ---
+Innovation, SDGs & Future Scope
+Novelty
+Patentable approach: ﬁrst 
+localized Edge AI on low-cost 
+load-cell microcontrollers for 
+predictive IV monitoring.
+SDGs
+Targets SDG 3 (Good Health & 
+Well-being) and SDG 9 (Industry, 
+Innovation & Infrastructure).
+Future Scope
+EMR integration, AI scaling to detect transfusion viscosities, 
+multi-parameter monitoring (ﬂow + pressure).
+Planned next steps include clinical pilots, regulatory pathway 
+mapping, and partnerships with MSME hospital networks.
+
+--- Page 8 ---
+Conclusion
+Conclusion
+We convert common IV equipment into predictive Industry 4.0 infrastructure: 
+protecting patients, reducing nurse burden, and keeping costs within MSME 
+budgets.
+Questions?
+                                                                                                  THANK YOU!
+
+================================================================================
+FILE: dt report.pdf
+================================================================================
+Total pages: 14
+
+--- Page 1 ---
+Applied Design Thinking Workbook | Dot Sphere Learning  
+INSTRUCTIONS 
+HOW THIS WORKBOOK WORKS 
+ 
+ 
+How to Use This Workbook 
+This is a working document, not a reading book. 
+ 
+Fill all sections during the workshop. 
+Avoid generic answers. Be specific. 
+Use real observations, not assumptions. 
+All final outputs will come from this workbook. 
+Important Rules: 
+• Minimum 5 real user interactions required 
+• Document actual observations and quotes 
+• Show what failed — not just what worked 
+Think clearly. Write concisely. 
+ 
+ 
+AI USAGE REMINDER 
+Use AI for - 
+• Structuring insights 
+• Expanding ideas 
+• Organizing notes 
+Do NOT use AI for - 
+• Fake research 
+• Fabricated validation 
+• Copy-paste solutions 
+
+
+--- Page 2 ---
+Applied Design Thinking Workbook | Dot Sphere Learning  
+01. PROBLEM & USER DEFINITION 
+ 
+Target User (Be Specific) 
+ 
+Why does this problem matter? 
+ Inpatients requiring continuous Intravenous (IV) therapy  
+ The clinical nursing staff managing their care. 
+ The problem actually occurs in resource-constrained inpatient clinical 
+care environments(Ex:24/7 hospitals) and hospital floors with high 
+patient-to-nurse ratios. 
+ Relying on manual observation for IV monitoring risks severe adverse 
+events, such as air embolisms and undetected venous infiltration, which 
+directly compromise patient safety. 
+Context (Where does this problem occur?) 
+
+--- Page 3 ---
+Applied Design Thinking Workbook | Dot Sphere Learning  
+Initial Assumptions (List at least 5)  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Stakeholders (Who is involved?) 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Narrow the Problem (One clear line) 
+ Manual IV monitoring is unreliable in high patient-to-nurse ratio 
+environments.  
+  Current automated systems are purely reactive, only detecting failures 
+after they happen.  
+ Flow anomalies can be mathematically predicted using real-time data.  
+ Edge AI can be processed locally on low-cost microcontrollers.  
+ Predicting the exact time-to-empty will prevent air embolisms. 
+ 
+ Inpatients 
+ Nursing Staff 
+ Hospital Administration 
+ Current IV monitoring relies on reactive systems or manual observation, failing 
+to predict flow anomalies and risking severe adverse patient events like air 
+embolisms. 
+
+--- Page 4 ---
+Applied Design Thinking Workbook | Dot Sphere Learning  
+02. RESEARCH & INSIGHT CAPTURE 
+Interview Log (Minimum 5 Users) 
+ 
+ 
+ 
+Observations 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Nurse                 Inability to predict empty times.   
+ 
+ 
+Head                  Severe understaffing 
+Nurse 
+ 
+ 
+Patient               Physical risk and fear 
+ 
+ 
+Doctor                Need for predictive data 
+ 
+ 
+Teach                 Hardware limitations 
+Lead 
+ Nurse: "By the time I notice the IV,it is already empty."  
+ Head Nurse: "We have too many patients to check every IV drip manually 
+ Patient: "My relative’s blood backed up into the tube before anyone 
+noticed."  
+ Doctor: "We need a system that calculates flow rates in real-time, not just a 
+threshold trigger."  
+ Tech Lead: "Centralized systems are too slow; we need processing at the 
+bedside." 
+ 
+ 
+ Staff relies on reactive checking rather than proactive planning.  
+ High patient-to-nurse ratio makes manual monitoring impossible.  
+ Vulnerable to venous infiltration and air embolisms.  
+ Current tech is lacking time-series analysis. 
+ Highlights the need for decentralized Edge AI. 
+
+--- Page 5 ---
+Applied Design Thinking Workbook | Dot Sphere Learning  
+Pattern Clusters (Group Similar Findings) 
+ 
+ 
+ 
+ 
+Insight Statement 
+User struggles with - 
+Not because -  
+But because - 
+Top 3 Pain Points 
+ Extreme risk of air embolisms and venous infiltration.  
+ Total reliance on manual observation or reactive threshold-based 
+systems.  
+ Lack of real-time predictive data for IV flow rates. 
+ 
+they are neglectful. 
+they rely on manual observation and reactive systems 
+instead of predictive, real-time flow analysis. 
+ High risk of severe adverse events (air embolisms) before staff can react.  
+ High patient-to-nurse ratios making manual IV monitoring dangerous.  
+ Lack of real-time time-series analysis to predict exact time-to-empty. 
+ 
+preventing IV therapy failures (like air embolisms). 
+
+--- Page 6 ---
+Applied Design Thinking Workbook | Dot Sphere Learning  
+ 
+03. PROBLEM FRAMING 
+ 
+POV (Point of View)  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Final HMW (Select ONE) 
+ 
+ 
+ 
+ 
+An inpatient receiving continuous IV therapy and their assigned nurse. 
+A way to accurately predict flow anomalies and exact time-to-empty. 
+Reactive systems and manual checks lead to a high risk of air 
+embolisms and venous infiltration in resource-constrained 
+environments. 
+ How might we use time-series analysis to predict exact IV 
+empty times?  
+ How might we implement Edge AI directly at the patient's 
+bedside?  
+ How might we eliminate air embolism risks before failures 
+occur?  
+ 
+How might we create a decentralized, predictive monitoring 
+architecture using Edge AI to calculate exact time-to-empty and 
+prevent severe adverse events like air embolisms? 
+
+--- Page 7 ---
+Applied Design Thinking Workbook | Dot Sphere Learning  
+Mission Impossible 
+04. IDEATION & SELECTION 
+ 
+Idea Generation (Crazy 8) 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+  
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Miniaturized in-
+line turbine sensor 
+that measures 
+physical fluid flow. 
+Computer vision 
+camera mounted 
+on the pole to 
+visually count IV 
+drops. 
+Ultrasonic flow 
+sensor clamped 
+directly onto the 
+IV tubing. 
+Wearable 
+biometric patch to 
+detect patient 
+distress from 
+venous infiltration. 
+Smart IV bags 
+with built-in 
+electronic 
+shrinking sensors. 
+Robotic ward 
+assistant that 
+physically drives 
+from bed to bed to 
+check IVs. 
+Laser-based 
+optical scanner 
+measuring fluid 
+density in the 
+drip chamber. 
+ESP32 
+microcontroller 
+with a Load Cell 
+for real-time 
+weight tracking. 
+ The Idea: A self-replenishing, wireless IV fluid teleportation 
+system that directly hydrates the patient's bloodstream without 
+bags, tubes, or needles, entirely eliminating the need for flow 
+monitoring. 
+ The Takeaway: While impossible, it highlights that the ultimate 
+goal is zero physical monitoring burden on the nursing staff and 
+zero risk of physical complications (like air embolisms) for the 
+patient. 
+ 
+
+--- Page 8 ---
+Applied Design Thinking Workbook | Dot Sphere Learning  
+Top 3 Ideas 
+ 
+ 
+ 
+Final Selected Concept 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Impact vs Feasibility Grid 
+ Edge AI & Load Cell: ESP32 microcontroller with a Load Cell to perform 
+real-time time-series analysis on IV fluid weight.  
+ Optical Drip Sensors: Using infrared sensors clamped to the drip chamber 
+to count individual drops. 
+ Ultrasonic Tubing Sensor: Using sound waves to measure fluid velocity 
+directly inside the tube. 
+ 
+ Edge AI Load Cell: High Impact / High Feasibility (Highly accurate 
+predictive modeling using low-cost hardware).  
+ Optical Drip Sensors: High Impact / Medium Feasibility (Susceptible to 
+ambient light interference and requires line-of-sight). 
+ Ultrasonic Sensor: High Impact / Low Feasibility (Components are too 
+expensive for resource-constrained environments). 
+ 
+AI Driven IV Fluid Monitoring: A decentralized system using an ESP32 microcontroller 
+and a Load Cell to run Edge AI, performing time-series analysis to predict exact time-
+to-empty and flow anomalies. 
+
+--- Page 9 ---
+Applied Design Thinking Workbook | Dot Sphere Learning  
+05. PROTOTYPE & TESTING 
+ 
+Sketch / Flow 
+ 
+User Interaction Steps/ Journey Map 
+  A Load Cell is attached to the IV bag to continuously measure fluid weight.  
+  The paired ESP32 microcontroller captures this continuous data stream locally.  
+  Edge AI performs real-time time-series analysis directly on the ESP32.  
+  The system successfully calculates a flow anomaly and the exact time-to-
+empty.  
+  An AI Triage Agent ingests this predictive data to proactively and silently alert 
+the nurse before failure occurs. 
+ 
+IV Bag & Load Cell 
+Continuous Data Collection (Measures fluid weight in real-time) 
+ESP32 Microcontroller 
+Predictive Analytics (Calculates exact time-to-empty & flow anomalies) 
+Centralized AI Triage Agent 
+Edge AI Processing (Runs time-series analysis locally) 
+Smart Alert Routing (Finds the most available staff member) 
+Available Nurse's Device (Receives prioritized, silent alert before IV the bag fails 
+
+--- Page 10 ---
+Applied Design Thinking Workbook | Dot Sphere Learning  
+Testing Feedback 
+ 
+Hypothesis 
+If we -  implement Edge AI directly on an ESP32 microcontroller paired with a Load Cell 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+What Changed 
+ 
+ 
+we can perform real-time time-series analysis to predict exact time-to-empty 
+and eliminate air embolism risks 
+Traditional threshold-based systems failed because they are strictly reactive, 
+broadcasting non-differentiated alarms only after a critical failure has already 
+occurred. This approach overwhelms resource-constrained floors with noise and fails 
+to proactively protect the patient. 
+We shifted from a reactive alarm model to a predictive architecture. By implementing 
+Edge AI on an ESP32 with a Load Cell, the system now calculates exact time-to-empty 
+before failures happen. We also integrated a centralized AI Triage Agent to 
+dynamically route silent, prioritized alerts to the most available nurse. 
+local, decentralized processing allows for proactive intervention rather than 
+waiting for a reactive threshold trigger to fail. 
+Initial observations of traditional automated systems showed that broadcasting loud, 
+reactive alarms to the entire hospital floor creates severe "alarm fatigue" among 
+nursing staff. Furthermore, waiting for a failure to happen before alerting the staff 
+puts patients at high risk for severe adverse events, such as air embolisms. 
+
+--- Page 11 ---
+Applied Design Thinking Workbook | Dot Sphere Learning  
+06. FINAL SOLUTION SNAPSHOT 
+ 
+Final Concept (Max 5–6 lines) 
+ 
+ 
+Financial - 
+ 
+ 
+Behavioral- 
+ 
+ 
+ 
+ 
+Key Barrier 
+What Problem Does It Solve? 
+Feasibility 
+ 
+A decentralized, predictive monitoring system for continuous IV therapy that 
+implements Edge AI directly on an ESP32 microcontroller paired with a Load Cell. It 
+conducts real-time time-series analysis to predict flow anomalies and exact time-to-
+empty before any failures occur. A centralized AI Triage Agent then ingests this 
+predictive data. Finally, the agent dynamically routes prioritized, silent alerts directly to 
+the most available staff member. 
+It actively eliminates the high risk of severe adverse events, such as air embolisms and 
+undetected venous infiltration, which are caused by reliance on manual observation. 
+Concurrently, it addresses dangerous "alarm fatigue" by replacing non-differentiated 
+broadcast alarms with targeted, silent alerts, aiming for up to a 40% reduction in 
+hospital floor noise. 
+High. It integrates into resource-constrained clinical environments by 
+optimizing nursing workflows and routing alerts only to the most 
+available staff members. 
+High. It utilizes highly accessible and cost-effective IoT Medical Devices, 
+specifically ESP32 microcontrollers and standard Load Cells. 
+High. It significantly improves staff well-being by reducing the severe 
+stress and cognitive load associated with broadcast alarm fatigue. 
+Seamlessly integrating the decentralized Edge AI nodes with the 
+centralized AI Triage Agent to ensure predictive data is communicated 
+without latency in a resource-constrained clinical environment. 
+
+--- Page 12 ---
+Applied Design Thinking Workbook | Dot Sphere Learning  
+ 
+ 
+Problem Clarity (1–2 lines)Define your problem in the simplest way possible 
+  
+ 
+ 
+ 
+ 
+(Be Specific) Who exactly are you solving for? 
+ 
+ 
+ 
+Core Insight 
+ 
+What did you learn from users that changed your thinking? 
+ 
+Key Pain Points (Top 3) 
+ 
+Your “Aha Moment” When did things click for you? 
+ Realizing that by running Edge AI directly on a low-cost ESP32 microcontroller 
+paired with a Load Cell, we can perform real-time time-series analysis to predict 
+exact empty times before failures happen. 
+ 
+Final HMW (How Might We) 
+ How might we utilize Edge AI and real-time time-series analysis to predict exact 
+IV time-to-empty, thereby eliminating air embolism risks and safeguarding 
+patients? 
+ 
+Your final problem framing 
+ How might we utilize Edge AI and real-time time-series analysis to predict exact 
+IV time-to-empty, thereby eliminating air embolism risks and safeguarding 
+patients?
+If this page is strong, your project is strong. 
+ 
+ 
+ 
+ Inpatient clinical care patients requiring continuous IV therapy, and the 
+nursing staff managing high patient-to-nurse ratios at facilities like 
+Emergency Hospitals. 
+ Proactive patient safety requires predicting failures (exact time-to-
+empty) before they occur and routing silent alerts to specific staff, rather 
+than waiting for a failure to trigger a reactive, non-differentiated alarm. 
+ We learned that waiting for an IV bag to empty before taking action is 
+fundamentally unsafe. To truly safeguard patients, the monitoring system 
+must shift from being reactive to being predictive by calculating flow 
+anomalies before a critical failure occurs. 
+ High risk of severe adverse events, such as air embolisms and 
+undetected venous infiltration. 
+ Complete inability of current systems to predict exact time-to-empty in 
+advance. 
+ High patient-to-nurse ratios making manual IV monitoring impossible 
+and dangerous. 
+ 
+ Relying on manual observation and reactive threshold sensors for IV 
+monitoring leaves inpatients highly vulnerable to severe adverse events 
+like air embolisms. 
+
+--- Page 13 ---
+Applied Design Thinking Workbook | Dot Sphere Learning  
+Solution Summary (Max 3 lines) What are you building? 
+ 
+ A decentralized IV monitoring architecture utilizing an ESP32 and Load Cell to 
+perform predictive Edge AI time-series analysis. It calculates the exact time-to-
+empty and uses a centralized AI Triage Agent to dynamically route alerts to 
+available staff before a failure occurs. 
+ 
+Why THIS Solution? (Decision Logic) 
+ It directly solves the root cause of IV therapy risks (lack of proactive data) by 
+replacing delayed, reactive threshold sensors with a highly accurate, 
+decentralized predictive architecture. 
+ 
+What’s unique or better? 
+ 
+ 
+ 
+What proof do you have that this works? 
+ 
+ 
+Biggest Assumption You Took 
+ 
+What Failed? (Be Honest) What didn’t work? 
+ 
+Feasibility Check (Can this be built in real life?) 
+☐ Yes ☐ Maybe ☐ No ...Why? : The system leverages highly accessible, cost-effective IoT 
+medical device hardware combined with proven Edge AI time-series data modeling. 
+Impact (If this works…) What will change for users? 
+ It will completely eliminate the risk of air embolisms, transforming IV 
+monitoring from a risky manual burden into a highly accurate, automated, 
+predictive science. 
+One Line Pitch (Explain your idea in one powerful sentence) 
+ 
+ Instead of just triggering when a bag is completely empty, it moves the AI 
+processing to the "Edge" (the patient's bedside) to perform continuous 
+time-series analysis and predict failures in advance. 
+ By performing time-series analysis on real-time Load Cell data, the 
+architecture can successfully calculate flow anomalies and exact time-to-
+empty to proactively eliminate air embolism risks. 
+ Assuming the Load Cell data will remain stable and the Edge AI models 
+will stay accurate despite patient movement artifacts or vibrations in the 
+bed. 
+ Traditional automated systems failed to protect patients because they rely 
+on reactive thresholds, only detecting a problem after a critical failure has 
+already happened. 
+A decentralized Edge AI system that uses real-time time-series analysis to predict exact IV 
+empty times, eliminating air embolism risks and proactively safeguarding patients.  
+
+--- Page 14 ---
+ 
+Date 
+ 
+To whom it may concern, 
+ 
+We, members of the projects group, hereby grant Dot Sphere permission to publish and 
+showcase our project titled 
+ 
+ 
+ 
+on their company website www.dotsphere.in and associated platforms. We understand and 
+declare the following: 
+1. We are the rightful owner of the project and possess all necessary rights and permissions 
+to authorize its publication and the project done under the Dot Sphere Mentors guidance 
+in the Design Thinking Workshop. 
+2. We willingly consent to the publication of our project on the www.dotsphere.in website 
+and associated platforms for the purpose of showcasing and promoting the project. 
+3. We understand that the project may be accessible to the general public and may be 
+shared through various online channels. 
+4. We acknowledge that Dot Sphere will make reasonable efforts to ensure the accurate 
+representation and protection of the project content but shall not be held liable for any 
+inaccuracies or misuse of the project information. 
+5. In the spirit of community development, the solutions are open for anyone to utilize for a 
+beneficial purpose, anyone can use the solutions provided in the project, while giving 
+credit to the members involved. 
+6. We agree that Dot Sphere may include appropriate credits and acknowledgments for the 
+project on their website and associated platforms. 
+7. We release Dot Sphere from any claims, damages, or liabilities arising from the 
+publication or use of the project, including but not limited to copyright infringement, 
+defamation, or violation of any third-party rights. 
+8. This NOC is valid for the project publication on the www.dotsphere.in website and 
+associated platforms, unless otherwise specified in writing. 
+We have read and understood the terms and conditions mentioned above, and we voluntarily 
+give our consent for the publication of our project as outlined. We further certify that the 
+information provided in this NOC is true and accurate to the best of our knowledge. 
+ 
+Members’ Full Name & Roll Code: 
+
+================================================================================
+FILE: Epics final 0th review.pdf
+================================================================================
+Total pages: 2
+
+--- Page 1 ---
+Dept. of CSE, VRSSE, SAHE 2026-27 EPICS  
+SU24 
+SIDDHARTHA ACADEMY OF HIGHER EDUCATION 
+(Deemed to be University) 
+VELAGAPUDI RAMAKRISHNA SIDDHARTHA SCHOOL OF ENGINEERING 
+DEPARTMENT OF COMPUTER SCIENCE & ENGINEERING 
+B.Tech III Year, ACADEMIC YEAR: 2026-27 
+24CS381-ENGINEERING PROJECTS FOR COMMUNITY SERVICES(EPICS) 
+B.Tech (Computer Science & Engineering)-CSE 
+ 
+Review 0: Template 
+  Course:CSE                                           Section:CSE-C             Batch. No:23 
+ 
+Name of the Students and Roll. No along with CGPA: 
+ 
+S.No Name of the Student Roll. No CGPA 
+       1      G.Aishani           24EU04133        8.42 
+       2      B.Tejaswini           24EU04140        8.03 
+       3      V.Durga Madhav Chandra           24EU04193        7.64 
+ 
+Title of the project: 
+ 
+  AI Driven IV Fluid Monitoring and Smart Alert System 
+ 
+Societal Relevance:  
+ 
+Health Care  
+ 
+Client Details and Location (Societal) with Photograph (paste here): 
+ 
+
+
+--- Page 2 ---
+Dept. of CSE, VRSSE, SAHE 2026-27 EPICS  
+Abstract: 
+ 
+Intravenous (IV) therapy is a critical component of inpatient clinical care; however, its continuous 
+monitoring remains heavily reliant on manual observation or reactive, threshold-based automated 
+systems. In resource-constrained clinical environments with high patient-to-nurse ratios, this 
+manual reliance exacerbates the risk of severe adverse events, such as air embolisms or undetected 
+venous infiltration. Furthermore, when traditional automated systems are used, they broadcast non-
+differentiated alarms only after a critical failure has occurred. This reactive approach overwhelms 
+hospital floors with noise and significantly contributes to dangerous "alarm fatigue" among nursing 
+staff. To solve these compounding problems, this project proposes a decentralized, predictive 
+monitoring architecture. By implementing Edge AI directly on an ESP32 microcontroller paired with 
+a Load Cell, the system performs real-time time-series analysis to predict flow anomalies and exact 
+time-to-empty before failures occur. Additionally, a centralized AI Triage Agent ingests this 
+predictive data to dynamically route prioritized, silent alerts directly to the most available staff 
+member. This intelligent allocation system aims to eliminate air embolism risks and reduce 
+broadcast alarm fatigue by up to 40%, safeguarding patients while optimizing nursing workflows. 
+ 
+Keywords 
+ 
+→ Remote Patient Monitoring  
+→ Edge Artificial Intelligence  
+→ Multi-Agent Systems  
+→ IoT Medical Devices  
+→ Predictive Analytics 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+Signature of the EPICS Guide 
+
+================================================================================
+FILE: Preparing to Build a Project.pdf
+================================================================================
+Total pages: 2
+
+--- Page 1 ---
+Preparing to Build a Project
+https://gemini.google.com/app/d53e46dad830925b
+User prompt: hey study this completely and tell me what are you understand by this after i will
+tell you what i really want to be make
+Response: Across the three documents (presentation pitch, design thinking workbook, and
+EPICS Review 0 proposal), the project is titled "AI-Driven IV Fluid Monitoring and Smart
+Alert System".
+Here is a breakdown of the core concept:
+1. The Core Problem
+Air Embolism & Complications: In resource-constrained environments (like MSME
+hospitals, 24/7 clinics, or floors with high patient-to-nurse ratios), IV monitoring is done
+manually or using dumb/reactive systems. Empty IV bags or blocked lines go unnoticed,
+leading to backflow, venous infiltration, or air embolisms.
+Alarm Fatigue: Existing automated alerts are strictly reactive; they trigger loud, non-
+differentiated ward buzzers after the bag is already empty or failing, causing severe noise
+pollution and nursing fatigue.
+High Cost of Smart Pumps: Proprietary commercial smart infusion pumps are far too
+expensive ($$$) for Tier-2/Tier-3 hospitals, leaving around 85% of IV setups completely
+unmonitored.
+2. The Proposed Solution & Pipeline
+Instead of a simple static weight threshold or a cloud-dependent system, the project proposes a
+low-cost, retrofit edge-AI system that anticipates failures in advance:
+1. Sense: A 1 kg Load Cell continuously measures the physical weight of the hanging IV
+bag.
+2. Amplify: An HX711 24-bit ADC module digitizes the load cell signal.
+3. Analyze & Predict (Edge AI): An ESP32 microcontroller ingests the weight time-series
+data locally and runs a TinyML model (built/trained via Edge Impulse) to classify flow
+states into categories like Normal, Blocked, or Rapidly Emptying. It continuously calculates
+the exact time-to-empty locally with near-zero latency.
+4. Triage & Silent Alerts: The ESP32 communicates over Wi-Fi via a Blynk IoT backend /
+Centralized AI Triage Agent, routing prioritized, silent push notifications to the on-duty
+nurse’s mobile device rather than triggering loud room sirens.
+3. Key Design Thinking & Feasibility Takeaways
+Hardware Selection: Opted for a load cell + HX711 over optical drip counting (which
+suffers from ambient light issues) or ultrasonic sensors (which are too expensive).
+Main Risk / Assumption: Handling movement artifacts and vibrations on the IV stand so
+they don't corrupt the time-series inference.
+9/27/26, 12:05 PM Preparing to Build a Project
+https://gemini.google.com/app/d53e46dad830925b 1/2
+
+--- Page 2 ---
+Target Impact: Retrofit existing standard IV poles at minimal cost, target SDG 3 & 9, cut
+ward alarm noise by up to 40%, and prevent critical patient complications.
+Tell me what you really want to build or modify. Are you looking to develop the actual
+firmware/schematics, implement the TinyML model, replace components, build the mobile/triage
+interface, or pivot the system entirely?
+9/27/26, 12:05 PM Preparing to Build a Project
+https://gemini.google.com/app/d53e46dad830925b 2/2
+
