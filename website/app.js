@@ -6,56 +6,40 @@ const API_BASE_URL = "http://localhost:8000/api";
 let beds = {
   "ICU-01": {
     bed_id: "ICU-01",
-    patient_name: "A. Sharma",
-    age_gender: "52/M",
+    patient_name: "Unassigned Bed 01",
+    age_gender: "N/A",
     doctor_name: "Dr. Petra Winburry",
     assigned_nurse: "Nurse Aishani",
-    room_no: "ICU Room 104",
+    room_no: "ICU Ward 101",
     fluid_type: "Saline 0.9% (500ml)",
-    current_volume_ml: 442.5,
+    current_volume_ml: 500.0,
     full_volume_ml: 500.0,
-    percentage: 88.5,
-    flow_rate_mlm: 4.6,
-    tte_minutes: 96,
+    percentage: 100.0,
+    flow_rate_mlm: 0.0,
+    tte_minutes: 999,
     status: "NORMAL",
-    blynk_token: "DEMO_TOKEN_1"
+    blynk_token: ""
   },
   "ICU-02": {
     bed_id: "ICU-02",
-    patient_name: "R. Verma",
-    age_gender: "38/F",
+    patient_name: "Unassigned Bed 02",
+    age_gender: "N/A",
     doctor_name: "Dr. Petra Winburry",
-    assigned_nurse: "Nurse Aishani",
-    room_no: "ICU Room 108",
-    fluid_type: "Dextrose 5% (500ml)",
-    current_volume_ml: 22.0,
-    full_volume_ml: 500.0,
-    percentage: 4.4,
-    flow_rate_mlm: 5.1,
-    tte_minutes: 4,
-    status: "CRITICAL_LOW",
-    blynk_token: "DEMO_TOKEN_2"
-  },
-  "ICU-03": {
-    bed_id: "ICU-03",
-    patient_name: "K. Patel",
-    age_gender: "61/M",
-    doctor_name: "Dr. Rajesh Kumar",
     assigned_nurse: "Nurse Tejaswini",
-    room_no: "ICU Room 112",
-    fluid_type: "Ringer's Lactate (1000ml)",
-    current_volume_ml: 780.0,
-    full_volume_ml: 1000.0,
-    percentage: 78.0,
+    room_no: "ICU Ward 102",
+    fluid_type: "Saline 0.9% (500ml)",
+    current_volume_ml: 500.0,
+    full_volume_ml: 500.0,
+    percentage: 100.0,
     flow_rate_mlm: 0.0,
     tte_minutes: 999,
-    status: "BLOCKED",
-    blynk_token: "DEMO_TOKEN_3"
+    status: "NORMAL",
+    blynk_token: ""
   }
 };
 
 let nurses = {
-  "NURSE-01": { nurse_id: "NURSE-01", name: "Nurse Aishani", shift: "Morning (07:00 - 15:00)", contact: "+91 98765 43210", status: "On Duty", assigned_count: 2 },
+  "NURSE-01": { nurse_id: "NURSE-01", name: "Nurse Aishani", shift: "Morning (07:00 - 15:00)", contact: "+91 98765 43210", status: "On Duty", assigned_count: 1 },
   "NURSE-02": { nurse_id: "NURSE-02", name: "Nurse Tejaswini", shift: "Evening (15:00 - 23:00)", contact: "+91 98765 43211", status: "On Duty", assigned_count: 1 },
   "NURSE-03": { nurse_id: "NURSE-03", name: "Nurse Durga", shift: "Night (23:00 - 07:00)", contact: "+91 98765 43212", status: "On Standby", assigned_count: 0 }
 };
@@ -68,7 +52,7 @@ let doctors = {
 
 let activeSelectedBed = "ICU-01";
 let currentTab = "dashboard";
-let isSimulationMode = true;
+let isSimulationMode = false;
 let isDbConnected = false;
 let isSoundEnabled = true;
 
@@ -433,6 +417,20 @@ function populateNurseSelectDropdown() {
 }
 
 // --- Render Page View 1: Bed Cards Grid ---
+// --- Predictive Triage Evaluator Guard ---
+function evaluateBedStatus(vol, pct, flow, tte) {
+  if (vol <= 10.0 || pct <= 2.0) return "EMPTY";
+  // Guard: Volume > 75ml AND Percentage > 25% MUST NEVER be CRITICAL_LOW
+  if (vol > 75.0 && pct > 25.0) {
+    if (flow < 0.1 && pct > 15.0 && vol > 20.0) return "BLOCKED";
+    return "NORMAL";
+  }
+  if (pct <= 15.0 || vol <= 75.0 || (tte <= 5 && pct <= 25.0)) return "CRITICAL_LOW";
+  if (flow < 0.1 && pct > 15.0 && vol > 20.0) return "BLOCKED";
+  return "NORMAL";
+}
+
+// --- Render Page View 1: Bed Cards Grid ---
 function renderBedCards() {
   const container = document.getElementById("bed-grid");
   if (!container) return;
@@ -444,6 +442,14 @@ function renderBedCards() {
   let alertCount = 0;
 
   Object.values(beds).forEach(bed => {
+    const vol = bed.current_volume_ml !== undefined ? bed.current_volume_ml : 500;
+    const pct = bed.percentage !== undefined ? bed.percentage : 100;
+    const flow = bed.flow_rate_mlm !== undefined ? bed.flow_rate_mlm : 4.6;
+    const tte = bed.tte_minutes !== undefined ? bed.tte_minutes : 96;
+    
+    // Evaluate status dynamically with guard logic
+    bed.status = evaluateBedStatus(vol, pct, flow, tte);
+
     const card = document.createElement("div");
     let badgeClass = "bg-emerald-100 text-emerald-700 border-emerald-200";
     let containerGlow = "card-3d bed-card-item border-slate-200/80";
@@ -462,10 +468,6 @@ function renderBedCards() {
       normalCount++;
     }
 
-    const vol = bed.current_volume_ml !== undefined ? bed.current_volume_ml : 500;
-    const pct = bed.percentage !== undefined ? bed.percentage : 100;
-    const flow = bed.flow_rate_mlm !== undefined ? bed.flow_rate_mlm : 4.6;
-    const tte = bed.tte_minutes !== undefined ? bed.tte_minutes : 96;
     const patientName = bed.patient_name || bed.bed_id;
     const ageGender = bed.age_gender || "45/M";
     const doctorName = bed.doctor_name || "Dr. Petra Winburry";
@@ -560,10 +562,41 @@ function renderBedCards() {
   const sBadge = document.getElementById("sidebar-alert-badge");
   if (sBadge) sBadge.textContent = alertCount;
 
+  // Dynamically update Priority Triage Banner
   const banner = document.getElementById("triage-banner");
   if (banner) {
-    if (alertCount > 0) banner.classList.remove("hidden");
-    else banner.classList.add("hidden");
+    const criticalBed = Object.values(beds).find(b => b.status === "EMPTY") ||
+                        Object.values(beds).find(b => b.status === "CRITICAL_LOW") ||
+                        Object.values(beds).find(b => b.status === "BLOCKED");
+
+    if (criticalBed) {
+      banner.classList.remove("hidden");
+      const cBedId = criticalBed.bed_id || "ICU-01";
+      const cRoom = criticalBed.room_no || "ICU Ward";
+      const cVol = (criticalBed.current_volume_ml !== undefined ? criticalBed.current_volume_ml : 500).toFixed(1);
+      const cTte = criticalBed.tte_minutes !== undefined ? criticalBed.tte_minutes : 96;
+
+      const bannerBedEl = document.getElementById("banner-bed-id");
+      if (bannerBedEl) bannerBedEl.textContent = `Bed ${cBedId} (${cRoom})`;
+
+      const bannerTitleEl = document.getElementById("alert-title");
+      if (bannerTitleEl) {
+        if (criticalBed.status === "EMPTY") {
+          bannerTitleEl.innerHTML = `Saline Bottle Empty (0.0 ml remaining) — Immediate Replacement Required!`;
+        } else if (criticalBed.status === "BLOCKED") {
+          bannerTitleEl.innerHTML = `Infusion Line Blocked/Occluded — Immediate Nurse Intervention Required!`;
+        } else {
+          bannerTitleEl.innerHTML = `Low Saline Warning (${cVol} ml remaining) — Estimated Empty in <span class="text-rose-600 font-extrabold underline">${cTte < 900 ? cTte + ' Minutes' : 'N/A'}</span>`;
+        }
+      }
+
+      const bannerBtn = banner.querySelector("button");
+      if (bannerBtn) {
+        bannerBtn.setAttribute("onclick", `triggerResetBottle('${cBedId}')`);
+      }
+    } else {
+      banner.classList.add("hidden");
+    }
   }
 
   manageContinuousAudio(hasCritical);
@@ -772,22 +805,24 @@ async function updateTelemetry() {
   }
 
   if (isDbConnected) {
-    const b = beds["ICU-01"];
-    if (b) {
-      try {
-        await fetch(`${API_BASE_URL}/telemetry`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            bed_id: b.bed_id || "ICU-01",
-            volume_ml: b.current_volume_ml !== undefined ? b.current_volume_ml : 440,
-            percentage: b.percentage !== undefined ? b.percentage : 88,
-            flow_rate_mlm: b.flow_rate_mlm !== undefined ? b.flow_rate_mlm : 4.6,
-            tte_minutes: b.tte_minutes !== undefined ? b.tte_minutes : 96,
-            status: b.status || "NORMAL"
-          })
-        });
-      } catch (e) { console.warn(e); }
+    for (const bedId in beds) {
+      const b = beds[bedId];
+      if (b) {
+        try {
+          await fetch(`${API_BASE_URL}/telemetry`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              bed_id: b.bed_id || bedId,
+              volume_ml: b.current_volume_ml !== undefined ? b.current_volume_ml : 500,
+              percentage: b.percentage !== undefined ? b.percentage : 100,
+              flow_rate_mlm: b.flow_rate_mlm !== undefined ? b.flow_rate_mlm : 4.6,
+              tte_minutes: b.tte_minutes !== undefined ? b.tte_minutes : 96,
+              status: b.status || "NORMAL"
+            })
+          });
+        } catch (e) { console.warn(e); }
+      }
     }
   }
 
@@ -796,33 +831,65 @@ async function updateTelemetry() {
 }
 
 function simulateTelemetryData() {
-  const bed1 = beds["ICU-01"];
-  if (bed1) {
-    let v = bed1.current_volume_ml !== undefined ? bed1.current_volume_ml : 442.5;
-    let rate = bed1.flow_rate_mlm !== undefined ? bed1.flow_rate_mlm : 4.6;
-    if (v > 10) {
-      v -= (rate / 60) * 3;
+  Object.values(beds).forEach(bed => {
+    if (!bed) return;
+    let v = bed.current_volume_ml !== undefined ? bed.current_volume_ml : (bed.full_volume_ml || 500);
+    let rate = bed.flow_rate_mlm !== undefined ? bed.flow_rate_mlm : 4.6;
+    if (rate <= 0) rate = 4.6;
+    bed.flow_rate_mlm = rate;
+
+    if (v > 0) {
+      v -= (rate / 60) * 3; // 3 seconds interval
       if (v < 0) v = 0;
-      bed1.current_volume_ml = v;
-      bed1.percentage = (v / (bed1.full_volume_ml || 500)) * 100;
-      bed1.tte_minutes = Math.max(1, Math.round(v / rate));
+      bed.current_volume_ml = Math.max(0, v);
+      const full = bed.full_volume_ml || 500;
+      bed.percentage = Math.min(100, Math.max(0, (v / full) * 100));
+      bed.tte_minutes = rate > 0.1 ? Math.max(1, Math.round(v / rate)) : 999;
+      bed.status = evaluateBedStatus(bed.current_volume_ml, bed.percentage, bed.flow_rate_mlm, bed.tte_minutes);
     }
-  }
+  });
 }
 
 async function fetchBlynkHardwareData() {
   try {
-    const url = `https://${blynkServer}/external/api/get?token=${blynkToken}&V0&V1&V2&V3&V4`;
-    const res = await fetch(url);
-    if (res.ok) {
-      const data = await res.json();
-      const liveBed = beds["ICU-01"];
-      if (liveBed) {
-        if (data.V0 !== undefined) liveBed.current_volume_ml = parseFloat(data.V0);
-        if (data.V1 !== undefined) liveBed.percentage = parseFloat(data.V1);
-        if (data.V2 !== undefined) liveBed.flow_rate_mlm = parseFloat(data.V2);
-        if (data.V3 !== undefined) liveBed.tte_minutes = parseInt(data.V3);
-        if (data.V4 !== undefined) liveBed.status = data.V4;
+    for (const bedId in beds) {
+      const bed = beds[bedId];
+      const tokenToUse = bed.blynk_token || blynkToken;
+      if (!tokenToUse || tokenToUse.startsWith("DEMO_")) continue;
+
+      const url = `https://${blynkServer}/external/api/get?token=${tokenToUse}&V0&V1&V2&V3&V4`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.V0 !== undefined) bed.current_volume_ml = parseFloat(data.V0);
+        if (data.V1 !== undefined) bed.percentage = parseFloat(data.V1);
+        if (data.V2 !== undefined) bed.flow_rate_mlm = parseFloat(data.V2);
+        if (data.V3 !== undefined) bed.tte_minutes = parseInt(data.V3);
+        
+        // Re-evaluate verified status to guard against hardware startup glitch
+        bed.status = evaluateBedStatus(
+          bed.current_volume_ml !== undefined ? bed.current_volume_ml : 500,
+          bed.percentage !== undefined ? bed.percentage : 100,
+          bed.flow_rate_mlm !== undefined ? bed.flow_rate_mlm : 4.6,
+          bed.tte_minutes !== undefined ? bed.tte_minutes : 96
+        );
+
+        if (isDbConnected) {
+          try {
+            await fetch(`${API_BASE_URL}/telemetry`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                bed_id: bed.bed_id,
+                volume_ml: bed.current_volume_ml,
+                percentage: bed.percentage,
+                flow_rate_mlm: bed.flow_rate_mlm,
+                tte_minutes: bed.tte_minutes,
+                status: bed.status
+              })
+            });
+          } catch (e) { console.warn(e); }
+        }
       }
     }
   } catch (err) { console.warn(err); }
@@ -836,6 +903,13 @@ async function triggerResetBottle(bedId) {
     targetBed.current_volume_ml = full;
     targetBed.percentage = 100.0;
     targetBed.status = "NORMAL";
+
+    const tokenToUse = targetBed.blynk_token || blynkToken;
+    if (tokenToUse && !tokenToUse.startsWith("DEMO_")) {
+      try {
+        fetch(`https://${blynkServer}/external/api/update?token=${tokenToUse}&V5=1`);
+      } catch (e) { console.warn(e); }
+    }
 
     manageContinuousAudio(false);
   }

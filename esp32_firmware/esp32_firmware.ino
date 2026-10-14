@@ -1,21 +1,29 @@
 /*
- * Flowguard-AI: Smart IV Fluid Monitoring & Alert System
+ * Flowguard-AI: Smart IV Fluid Monitoring & Alert System (ESP32 Node)
  * 
- * Hardware Setup:
+ * Hardware Wiring:
  * - Microcontroller: ESP32 (1 Node = 1 Saline Bed = 1 Blynk Auth Code)
- * - Load Cell ADC: HX711 (DOUT -> GPIO 21, SCK -> GPIO 22)
- * - OLED Display: SSD1306 128x64 I2C (SDA -> GPIO 18, SCL -> GPIO 19)
- * - Reset / Set-Full Button: GPIO 4 (Internal Pullup, Active LOW)
- * - Optional Sound Alert Buzzer: GPIO 5
- * - Units: Volume in ml, Flow Rate in ml/min (Saline density = 1.0 g/ml)
+ * - Load Cell ADC (HX711): DOUT -> GPIO 21, SCK -> GPIO 22
+ * - OLED Display (SSD1306 128x64 I2C): SDA -> GPIO 18, SCL -> GPIO 19
+ * - Tactile Reset / Tare Button: GPIO 4 (Internal Pullup, Active LOW)
+ * - Local Sound Alert Buzzer: GPIO 5 (Active HIGH)
+ * 
+ * Features:
+ * 1. Self-contained Captive WiFi & Blynk Provisioning Portal ("Flowguard-AP-Node" @ 192.168.4.1)
+ * 2. Calibration Factor pre-set to 1064.4 (Measures in grams / ml)
+ * 3. Short Button Press (< 1.5s): Set New Saline Bottle (100% Full Capacity Reset)
+ * 4. Long Button Press (>= 1.5s): Zero-calibration Hook Tare (0.0g)
+ * 5. Local SSD1306 OLED Telemetry & Warning Display
+ * 6. Predictive Time-Series Flow Rate (ml/min) & Time-to-Empty (TTE in minutes)
+ * 7. Real-Time Telemetry Sync with Blynk IoT Cloud (V0: Volume, V1: %, V2: Flow Rate, V3: TTE, V4: Status)
  */
 
 #define BLYNK_TEMPLATE_ID "YOUR_TEMPLATE_ID"
 #define BLYNK_TEMPLATE_NAME "Flowguard AI Bed Node"
-#define BLYNK_AUTH_TOKEN "YOUR_BLYNK_AUTH_TOKEN"
 
 #include <WiFi.h>
-#include <WiFiClient.h>
+#include <WebServer.h>
+#include <DNSServer.h>
 #include <BlynkSimpleEsp32.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
@@ -31,25 +39,30 @@ const int OLED_SCL_PIN = 19;
 const int BUTTON_PIN = 4;
 const int BUZZER_PIN = 5;
 
-// --- Calibration & Hardware Parameters ---
+// --- Calibration Factor ---
 float calibration_factor = 1064.4;
+
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
+#define DNS_PORT 53
 
 // Objects
 HX711 scale;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 Preferences preferences;
 BlynkTimer timer;
+DNSServer dnsServer;
+WebServer server(80);
 
-// Wi-Fi Credentials
-char auth[] = BLYNK_AUTH_TOKEN;
-char ssid[] = "YOUR_WIFI_SSID";
-char pass[] = "YOUR_WIFI_PASSWORD";
+// NVS Provisioning Credentials
+String wifiSSID = "";
+String wifiPASS = "";
+String blynkToken = "";
+bool isAPMode = false;
 
-// --- System State Variables (Units in ml and ml/min) ---
+// System Telemetry Variables (in ml and ml/min)
 float currentVolumeML = 0.0;
-float fullVolumeML = 500.0; // Default 500ml bottle
+float fullVolumeML = 500.0; // Default 500ml saline bottle
 float percentage = 100.0;
 float flowRateMLM = 0.0;   // ml per minute
 int tteMinutes = 0;        // Time To Empty in minutes
@@ -65,69 +78,193 @@ bool bufferFilled = false;
 unsigned long buttonPressTime = 0;
 bool buttonActive = false;
 
-void updateOLED();
+// Function Declarations
+void initHardware();
+void setupCaptivePortal();
+void handleCaptivePortalRoot();
+void handleCaptivePortalSave();
+void checkPhysicalButton();
+void processSensors();
 void calculateFlowAndTTE();
+void updateOLED();
 void setBottleFull();
 void tareEmptyHook();
 void triggerLocalBuzzer();
+void sendBlynkTelemetry();
 
-// Blynk virtual pin write handler (Remote Reset from Website/App)
+// Remote triggers from Blynk Cloud
 BLYNK_WRITE(V5) {
   int value = param.asInt();
-  if (value == 1) {
-    setBottleFull();
-  }
+  if (value == 1) setBottleFull();
+}
+
+BLYNK_WRITE(V6) {
+  int value = param.asInt();
+  if (value == 1) tareEmptyHook();
 }
 
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  Serial.println("\n=================================");
-  Serial.println(" Flowguard-AI Node Initializing ");
-  Serial.println("=================================");
+  Serial.println("\n==========================================");
+  Serial.println(" Flowguard-AI ESP32 Saline Bed Node v2.5 ");
+  Serial.println("==========================================");
 
+  initHardware();
+
+  // Load preferences from non-volatile storage
+  preferences.begin("flowguard", false);
+  wifiSSID = preferences.getString("ssid", "");
+  wifiPASS = preferences.getString("pass", "");
+  blynkToken = preferences.getString("token", "");
+  fullVolumeML = preferences.getFloat("fullVol", 500.0);
+
+  // Check if WiFi credentials exist and attempt connection
+  if (wifiSSID.length() > 0) {
+    Serial.print("Connecting to Saved WiFi: ");
+    Serial.println(wifiSSID);
+
+    display.clearDisplay();
+    display.setCursor(0, 15);
+    display.println("Connecting WiFi...");
+    display.setCursor(0, 35);
+    display.println(wifiSSID);
+    display.display();
+
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(wifiSSID.c_str(), wifiPASS.c_str());
+
+    int attempts = 0;
+    while (WiFi.status() != WL_CONNECTED && attempts < 25) {
+      delay(500);
+      Serial.print(".");
+      attempts++;
+    }
+
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println("\nWiFi Connected successfully!");
+      Serial.print("IP Address: ");
+      Serial.println(WiFi.localIP());
+
+      if (blynkToken.length() > 0) {
+        Blynk.config(blynkToken.c_str());
+        Blynk.connect(4000);
+      }
+    } else {
+      Serial.println("\nWiFi Connection Failed! Launching Captive Portal...");
+      setupCaptivePortal();
+    }
+  } else {
+    Serial.println("No WiFi credentials found! Launching Captive Portal...");
+    setupCaptivePortal();
+  }
+
+  // Setup sensor processing and cloud sync timers
+  timer.setInterval(2000L, processSensors);
+  timer.setInterval(4000L, sendBlynkTelemetry);
+}
+
+void loop() {
+  if (isAPMode) {
+    dnsServer.processNextRequest();
+    server.handleClient();
+  } else {
+    if (WiFi.status() == WL_CONNECTED && blynkToken.length() > 0) {
+      Blynk.run();
+    }
+    timer.run();
+  }
+  checkPhysicalButton();
+}
+
+void initHardware() {
   pinMode(BUTTON_PIN, INPUT_PULLUP);
   pinMode(BUZZER_PIN, OUTPUT);
   digitalWrite(BUZZER_PIN, LOW);
 
-  // Initialize Custom I2C for OLED (SDA=18, SCL=19)
+  // Initialize Custom I2C for SSD1306 OLED (SDA=18, SCL=19)
   Wire.begin(OLED_SDA_PIN, OLED_SCL_PIN);
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-    Serial.println("SSD1306 OLED allocation failed!");
+    Serial.println("WARNING: SSD1306 OLED not detected at 0x3C!");
   } else {
     display.clearDisplay();
     display.setTextColor(SSD1306_WHITE);
     display.setTextSize(1);
     display.setCursor(10, 20);
-    display.println("Flowguard-AI Booting");
+    display.println("Flowguard-AI Boot");
     display.display();
   }
 
-  // Load stored fullVolumeML from non-volatile storage
-  preferences.begin("flowguard", false);
-  fullVolumeML = preferences.getFloat("fullVolumeML", 500.0);
-
-  // Initialize HX711
+  // Initialize HX711 Load Cell ADC
   scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
   if (!scale.is_ready()) {
-    Serial.println("CRITICAL: HX711 not detected!");
+    Serial.println("CRITICAL: HX711 sensor not detected! Check wiring.");
   } else {
     scale.set_scale(calibration_factor);
-    Serial.println("HX711 scale initialized.");
+    Serial.println("HX711 Scale initialized with factor 1064.4.");
   }
-
-  // Connect to Blynk Cloud
-  Blynk.begin(auth, ssid, pass);
-
-  // Setup periodic timers
-  timer.setInterval(2000L, processSensors);
-  timer.setInterval(5000L, sendBlynkTelemetry);
 }
 
-void loop() {
-  Blynk.run();
-  timer.run();
-  checkPhysicalButton();
+void setupCaptivePortal() {
+  isAPMode = true;
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP("Flowguard-AP-Setup", "12345678");
+
+  IPAddress apIP = WiFi.softAPIP();
+  Serial.print("AP Captive Portal Active at IP: ");
+  Serial.println(apIP);
+
+  dnsServer.start(DNS_PORT, "*", apIP);
+
+  server.on("/", handleCaptivePortalRoot);
+  server.on("/save", HTTP_POST, handleCaptivePortalSave);
+  server.onNotFound(handleCaptivePortalRoot);
+  server.begin();
+
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setCursor(0, 5);
+  display.println("CAPTIVE WIFI PORTAL");
+  display.drawLine(0, 16, 128, 16, SSD1306_WHITE);
+  display.setCursor(0, 22);
+  display.println("SSID: Flowguard-AP-Setup");
+  display.setCursor(0, 34);
+  display.println("Pass: 12345678");
+  display.setCursor(0, 48);
+  display.println("IP: 192.168.4.1");
+  display.display();
+}
+
+void handleCaptivePortalRoot() {
+  String html = "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width, initial-scale=1'>";
+  html += "<style>body{font-family:sans-serif;background:#0f172a;color:#fff;padding:20px;margin:0;}";
+  html += ".card{background:rgba(255,255,255,0.1);backdrop-filter:blur(10px);padding:24px;border-radius:16px;border:1px solid rgba(255,255,255,0.2);}";
+  html += "h2{color:#38bdf8;margin-top:0;}input,select{width:100%;padding:12px;margin:8px 0 16px;border-radius:8px;border:none;box-sizing:border-box;}";
+  html += "input[type='submit']{background:#0284c7;color:#fff;font-weight:bold;cursor:pointer;}";
+  html += "</style></head><body><div class='card'>";
+  html += "<h2>Flowguard-AI Node Setup</h2>";
+  html += "<form action='/save' method='POST'>";
+  html += "<label>WiFi Network Name (SSID):</label><input type='text' name='ssid' placeholder='Hospital_WiFi' required>";
+  html += "<label>WiFi Password:</label><input type='password' name='pass' placeholder='Password'>";
+  html += "<label>Blynk Auth Token:</label><input type='text' name='token' placeholder='Blynk Device Token' value='" + blynkToken + "'>";
+  html += "<input type='submit' value='Save & Reboot Node'>";
+  html += "</form></div></body></html>";
+
+  server.send(200, "text/html", html);
+}
+
+void handleCaptivePortalSave() {
+  if (server.hasArg("ssid")) wifiSSID = server.arg("ssid");
+  if (server.hasArg("pass")) wifiPASS = server.arg("pass");
+  if (server.hasArg("token")) blynkToken = server.arg("token");
+
+  preferences.putString("ssid", wifiSSID);
+  preferences.putString("pass", wifiPASS);
+  preferences.putString("token", blynkToken);
+
+  server.send(200, "text/html", "<html><body style='font-family:sans-serif;background:#0f172a;color:#38bdf8;padding:30px;'><h2>Credentials Saved!</h2><p>Rebooting Flowguard Node to connect...</p></body></html>");
+  delay(2000);
+  ESP.restart();
 }
 
 void processSensors() {
@@ -135,7 +272,7 @@ void processSensors() {
     float rawWeight = scale.get_units(5);
     if (rawWeight < 0 && rawWeight > -1.0) rawWeight = 0.0;
     
-    // 1 gram of Saline = 1.0 ml
+    // Saline Density 1.0 g = 1.0 ml
     currentVolumeML = rawWeight;
 
     if (fullVolumeML > 0) {
@@ -146,7 +283,6 @@ void processSensors() {
 
     calculateFlowAndTTE();
     updateOLED();
-
   } else {
     flowState = "SENSOR_ERR";
   }
@@ -171,11 +307,18 @@ void calculateFlowAndTTE() {
       tteMinutes = 999;
     }
 
-    // --- Predictive Anomaly Logic ---
-    if (currentVolumeML <= 10.0 || percentage <= 3.0) {
+    // Predictive Triage Anomaly Logic
+    if (currentVolumeML <= 10.0 || percentage <= 2.0) {
       flowState = "EMPTY";
       triggerLocalBuzzer();
-    } else if (percentage <= 15.0 || tteMinutes <= 5) {
+    } else if (currentVolumeML > 75.0 && percentage > 25.0) {
+      if (flowRateMLM < 0.1 && percentage > 15.0 && currentVolumeML > 20.0) {
+        flowState = "BLOCKED";
+        triggerLocalBuzzer();
+      } else {
+        flowState = "NORMAL";
+      }
+    } else if (percentage <= 15.0 || currentVolumeML <= 75.0 || (tteMinutes <= 5 && percentage <= 25.0)) {
       flowState = "CRITICAL_LOW";
       triggerLocalBuzzer();
     } else if (flowRateMLM < 0.1 && percentage > 15.0) {
@@ -191,23 +334,23 @@ void calculateFlowAndTTE() {
 
 void triggerLocalBuzzer() {
   digitalWrite(BUZZER_PIN, HIGH);
-  delay(100);
+  delay(120);
   digitalWrite(BUZZER_PIN, LOW);
 }
 
 void setBottleFull() {
   if (currentVolumeML > 10.0) {
     fullVolumeML = currentVolumeML;
-    preferences.putFloat("fullVolumeML", fullVolumeML);
+    preferences.putFloat("fullVol", fullVolumeML);
     percentage = 100.0;
     flowState = "NORMAL";
 
     display.clearDisplay();
     display.setTextSize(1);
-    display.setCursor(10, 20);
+    display.setCursor(10, 15);
     display.println("BOTTLE RESET DONE!");
-    display.setCursor(10, 40);
-    display.print("Full: ");
+    display.setCursor(10, 35);
+    display.print("Capacity: ");
     display.print(fullVolumeML, 1);
     display.println(" ml");
     display.display();
@@ -217,11 +360,12 @@ void setBottleFull() {
 
 void tareEmptyHook() {
   display.clearDisplay();
+  display.setTextSize(1);
   display.setCursor(10, 20);
-  display.println("TARING HOOK...");
+  display.println("TARING HOOK (0.0g)...");
   display.display();
   scale.tare();
-  delay(1000);
+  delay(1200);
 }
 
 void checkPhysicalButton() {
@@ -234,14 +378,14 @@ void checkPhysicalButton() {
     if (buttonActive) {
       unsigned long duration = millis() - buttonPressTime;
       buttonActive = false;
-      if (duration >= 3000) tareEmptyHook();
+      if (duration >= 1500) tareEmptyHook();
       else if (duration >= 50) setBottleFull();
     }
   }
 }
 
 void sendBlynkTelemetry() {
-  if (Blynk.connected()) {
+  if (!isAPMode && WiFi.status() == WL_CONNECTED && Blynk.connected()) {
     Blynk.virtualWrite(V0, currentVolumeML);
     Blynk.virtualWrite(V1, percentage);
     Blynk.virtualWrite(V2, flowRateMLM);
@@ -251,31 +395,36 @@ void sendBlynkTelemetry() {
 }
 
 void updateOLED() {
-  display.clearDisplay();
+  if (isAPMode) return;
 
+  display.clearDisplay();
   display.setTextSize(1);
   display.setCursor(0, 0);
   display.print("FLOWGUARD ");
-  display.print(Blynk.connected() ? "[ONLINE]" : "[OFF]");
+  display.print(Blynk.connected() ? "[ONLINE]" : "[OFFLINE]");
 
   display.drawLine(0, 10, 128, 10, SSD1306_WHITE);
 
+  // Current Volume (ml)
   display.setTextSize(2);
   display.setCursor(0, 16);
   display.print(currentVolumeML, 1);
   display.setTextSize(1);
   display.print("ml");
 
+  // Percentage (%)
   display.setTextSize(2);
-  display.setCursor(75, 16);
+  display.setCursor(76, 16);
   display.print((int)percentage);
   display.print("%");
 
+  // Flow State
   display.setTextSize(1);
   display.setCursor(0, 38);
   display.print("STAT: ");
   display.print(flowState);
 
+  // Flow Rate & TTE
   display.setCursor(0, 52);
   if (tteMinutes < 900) {
     display.print("TTE:");

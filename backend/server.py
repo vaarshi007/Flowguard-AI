@@ -141,13 +141,12 @@ def init_db():
             VALUES (?, ?, ?, ?, ?)
         """, default_docs)
 
-    # Seed Default Beds if empty
+    # Seed Clean Default Beds if empty
     cursor.execute("SELECT COUNT(*) FROM beds")
     if cursor.fetchone()[0] == 0:
         default_beds = [
-            ("ICU-01", "A. Sharma", "52/M", "Dr. Petra Winburry", "Nurse Aishani", "ICU Room 104", "Saline 0.9% (500ml)", 500.0, 442.5, 88.5, 4.6, 96, "NORMAL", "DEMO_TOKEN_1"),
-            ("ICU-02", "R. Verma", "38/F", "Dr. Petra Winburry", "Nurse Aishani", "ICU Room 108", "Dextrose 5% (500ml)", 500.0, 22.0, 4.4, 5.1, 4, "CRITICAL_LOW", "DEMO_TOKEN_2"),
-            ("ICU-03", "K. Patel", "61/M", "Dr. Rajesh Kumar", "Nurse Tejaswini", "ICU Room 112", "Ringer's Lactate (1000ml)", 1000.0, 780.0, 78.0, 0.0, 999, "BLOCKED", "DEMO_TOKEN_3")
+            ("ICU-01", "Unassigned Bed 01", "N/A", "Dr. Petra Winburry", "Nurse Aishani", "ICU Ward 101", "Saline 0.9% (500ml)", 500.0, 500.0, 100.0, 0.0, 999, "NORMAL", ""),
+            ("ICU-02", "Unassigned Bed 02", "N/A", "Dr. Petra Winburry", "Nurse Tejaswini", "ICU Ward 102", "Saline 0.9% (500ml)", 500.0, 500.0, 100.0, 0.0, 999, "NORMAL", "")
         ]
         cursor.executemany("""
             INSERT INTO beds (bed_id, patient_name, age_gender, doctor_name, assigned_nurse, room_no, fluid_type, full_volume_ml, current_volume_ml, percentage, flow_rate_mlm, tte_minutes, status, blynk_token)
@@ -253,6 +252,20 @@ def get_all_beds():
     conn.close()
     return [dict(row) for row in rows]
 
+def compute_clinical_status(volume_ml: float, percentage: float, flow_rate: float, tte_mins: int) -> str:
+    if volume_ml <= 10.0 or percentage <= 2.0:
+        return "EMPTY"
+    # Guard: Volume > 75ml AND Percentage > 25% MUST NEVER be CRITICAL_LOW
+    if volume_ml > 75.0 and percentage > 25.0:
+        if flow_rate < 0.1 and percentage > 15.0 and volume_ml > 20.0:
+            return "BLOCKED"
+        return "NORMAL"
+    if percentage <= 15.0 or volume_ml <= 75.0 or (tte_mins <= 5 and percentage <= 25.0):
+        return "CRITICAL_LOW"
+    if flow_rate < 0.1 and percentage > 15.0 and volume_ml > 20.0:
+        return "BLOCKED"
+    return "NORMAL"
+
 @app.post("/api/beds")
 def add_or_update_bed(bed: BedCreate):
     conn = sqlite3.connect(DB_FILE)
@@ -270,8 +283,6 @@ def add_or_update_bed(bed: BedCreate):
             room_no=excluded.room_no,
             fluid_type=excluded.fluid_type,
             full_volume_ml=excluded.full_volume_ml,
-            current_volume_ml=excluded.full_volume_ml,
-            percentage=100.0,
             blynk_token=excluded.blynk_token,
             last_updated=CURRENT_TIMESTAMP
     """, (
@@ -298,6 +309,9 @@ def ingest_telemetry(data: TelemetryIngest):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     
+    # Evaluate status with guard to prevent false alerts on full bottles
+    verified_status = compute_clinical_status(data.volume_ml, data.percentage, data.flow_rate_mlm, data.tte_minutes)
+    
     cursor.execute("""
         UPDATE beds SET
             current_volume_ml = ?,
@@ -307,32 +321,32 @@ def ingest_telemetry(data: TelemetryIngest):
             status = ?,
             last_updated = CURRENT_TIMESTAMP
         WHERE bed_id = ?
-    """, (data.volume_ml, data.percentage, data.flow_rate_mlm, data.tte_minutes, data.status, data.bed_id))
+    """, (data.volume_ml, data.percentage, data.flow_rate_mlm, data.tte_minutes, verified_status, data.bed_id))
 
     cursor.execute("""
         INSERT INTO telemetry_logs (bed_id, volume_ml, percentage, flow_rate_mlm, tte_minutes, status)
         VALUES (?, ?, ?, ?, ?, ?)
-    """, (data.bed_id, data.volume_ml, data.percentage, data.flow_rate_mlm, data.tte_minutes, data.status))
+    """, (data.bed_id, data.volume_ml, data.percentage, data.flow_rate_mlm, data.tte_minutes, verified_status))
 
-    if data.status in ["CRITICAL_LOW", "BLOCKED", "EMPTY"]:
+    if verified_status in ["CRITICAL_LOW", "BLOCKED", "EMPTY"]:
         cursor.execute("""
             SELECT id FROM alert_logs 
             WHERE bed_id = ? AND alert_type = ? AND resolved_at IS NULL
-        """, (data.bed_id, data.status))
+        """, (data.bed_id, verified_status))
         existing = cursor.fetchone()
         if not existing:
-            severity = "HIGH" if data.status in ["CRITICAL_LOW", "EMPTY"] else "MEDIUM"
+            severity = "HIGH" if verified_status in ["CRITICAL_LOW", "EMPTY"] else "MEDIUM"
             cursor.execute("""
                 INSERT INTO alert_logs (bed_id, alert_type, severity, blocked_duration_mins)
                 VALUES (?, ?, ?, ?)
-            """, (data.bed_id, data.status, severity, 1 if data.status == "BLOCKED" else 0))
+            """, (data.bed_id, verified_status, severity, 1 if verified_status == "BLOCKED" else 0))
         else:
-            if data.status == "BLOCKED":
+            if verified_status == "BLOCKED":
                 cursor.execute("""
                     UPDATE alert_logs SET blocked_duration_mins = blocked_duration_mins + 1
                     WHERE id = ?
                 """, (existing[0],))
-    elif data.status == "NORMAL":
+    elif verified_status == "NORMAL":
         # Resolve active alerts if status returned to NORMAL
         cursor.execute("""
             UPDATE alert_logs SET resolved_at = CURRENT_TIMESTAMP
@@ -341,7 +355,7 @@ def ingest_telemetry(data: TelemetryIngest):
 
     conn.commit()
     conn.close()
-    return {"status": "success"}
+    return {"status": "success", "verified_status": verified_status}
 
 # --- Reset Bottle / Refill Endpoint (Clears Active Alerts) ---
 @app.post("/api/beds/{bed_id}/reset-full")
