@@ -37,9 +37,8 @@ if __name__ == "__main__":
     print(" Press Ctrl+C to stop the server.")
     print("=" * 65)
 
-    # Open browser automatically after 1.5 seconds
-    dashboard_path = os.path.join(os.path.dirname(__file__), "website", "index.html")
-    webbrowser.open(f"file:///{os.path.abspath(dashboard_path)}")
+    # Open browser automatically
+    webbrowser.open(f"http://localhost:{port}")
 
     # Launch Uvicorn Server
     uvicorn.run("backend.server:app", host="0.0.0.0", port=port, reload=False)

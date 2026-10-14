@@ -9,6 +9,7 @@ Features:
 """
 
 from fastapi import FastAPI, HTTPException, Response
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import sqlite3
@@ -504,6 +505,70 @@ def export_clinical_report_csv():
         headers={"Content-Disposition": "attachment; filename=Flowguard_Clinical_Report.csv"}
     )
 
+# --- Blynk Cloud Proxy Endpoints (Bypasses Browser CORS & Auto-resolves Region) ---
+@app.get("/api/blynk/telemetry")
+def get_blynk_telemetry(token: str, server: Optional[str] = None):
+    if not token or token.strip() == "" or token.startswith("DEMO_"):
+        raise HTTPException(status_code=400, detail="Invalid token provided")
+
+    token = token.strip()
+    target_server = server.strip() if server else "blynk.cloud"
+
+    # Auto-detect regional server if needed (e.g. blr1.blynk.cloud, ny3.blynk.cloud)
+    if "blynk.cloud" in target_server:
+        try:
+            check_resp = requests.get(f"https://blynk.cloud/external/api/isServerAssigned?token={token}", timeout=3)
+            if check_resp.ok:
+                info = check_resp.json()
+                if info.get("isAssigned") and info.get("server"):
+                    target_server = info["server"]
+        except Exception:
+            pass
+
+    # Query datastreams (v0: volume, v1: %, v2: rate, v3: tte, v4: status)
+    try:
+        resp = requests.get(f"https://{target_server}/external/api/get?token={token}&v0&v1&v2&v3&v4", timeout=4)
+        if not resp.ok:
+            resp = requests.get(f"https://{target_server}/external/api/get?token={token}&V0&V1&V2&V3&V4", timeout=4)
+
+        if resp.ok:
+            raw = resp.json()
+            normalized = {str(k).lower(): v for k, v in raw.items()}
+            return {"status": "success", "server": target_server, "data": normalized}
+        else:
+            return {"status": "error", "server": target_server, "detail": resp.text, "status_code": resp.status_code}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Blynk communication failed: {str(e)}")
+
+@app.post("/api/blynk/update")
+def update_blynk_pin(token: str, pin: str = "V5", value: str = "1", server: Optional[str] = None):
+    if not token or token.startswith("DEMO_"):
+        return {"status": "skipped", "detail": "Demo token"}
+
+    token = token.strip()
+    target_server = server.strip() if server else "blynk.cloud"
+
+    try:
+        check_resp = requests.get(f"https://blynk.cloud/external/api/isServerAssigned?token={token}", timeout=3)
+        if check_resp.ok:
+            info = check_resp.json()
+            if info.get("isAssigned") and info.get("server"):
+                target_server = info["server"]
+    except Exception:
+        pass
+
+    try:
+        resp = requests.get(f"https://{target_server}/external/api/update?token={token}&{pin}={value}", timeout=4)
+        return {"status": "success" if resp.ok else "error", "server": target_server, "code": resp.status_code}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
+# --- Mount Website Static Files (Enables multi-device web access on http://<IP>:8000) ---
+website_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "website")
+if os.path.exists(website_dir):
+    app.mount("/", StaticFiles(directory=website_dir, html=True), name="website")
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)

@@ -1,6 +1,14 @@
 // Flowguard-AI Interactive 3D Spatial Clinical Admin Dashboard Application Logic
 
-const API_BASE_URL = "http://localhost:8000/api";
+// Dynamic Base URL: Works seamlessly on localhost, LAN (e.g. http://192.168.1.5:8000), or hosted cloud
+const API_BASE_URL = (() => {
+  if (typeof window !== "undefined" && window.location) {
+    if (window.location.protocol.startsWith("http")) {
+      return `${window.location.origin}/api`;
+    }
+  }
+  return "http://localhost:8000/api";
+})();
 
 // --- State Repositories ---
 let beds = {
@@ -52,15 +60,17 @@ let doctors = {
 
 let activeSelectedBed = "ICU-01";
 let currentTab = "dashboard";
-let isSimulationMode = false;
+
+let blynkToken = localStorage.getItem("blynk_token") || "";
+let blynkServer = localStorage.getItem("blynk_server") || "blynk.cloud";
+let isSimulationMode = !blynkToken; // If token is present, start in Blynk Live mode!
+if (blynkToken && beds["ICU-01"]) beds["ICU-01"].blynk_token = blynkToken;
+
 let isDbConnected = false;
 let isSoundEnabled = true;
 
 let alertAudioInterval = null;
 let audioCtx = null;
-
-let blynkToken = localStorage.getItem("blynk_token") || "";
-let blynkServer = localStorage.getItem("blynk_server") || "blynk.cloud";
 
 let chartInstance = null;
 let analyticsBarInstance = null;
@@ -266,9 +276,21 @@ function setupEventListeners() {
   if (toggleBtn) {
     toggleBtn.addEventListener("click", () => {
       isSimulationMode = !isSimulationMode;
-      if (simText) simText.textContent = isSimulationMode ? "Mode: Live Simulation" : "Mode: Blynk Cloud Live";
+      updateSimButtonUI();
+      if (!isSimulationMode) {
+        fetchBlynkHardwareData();
+      }
     });
   }
+
+  // Pre-fill hardware setup fields from localStorage
+  const tokenInput = document.getElementById("settings-token-input");
+  const serverInput = document.getElementById("settings-server-input");
+  if (tokenInput && blynkToken) tokenInput.value = blynkToken;
+  if (serverInput && blynkServer) serverInput.value = blynkServer;
+
+  updateSimButtonUI();
+  updateBlynkStatusUI(false, blynkToken ? "Configured" : "No Token");
 
   if (openPatientBtn && patientModal) {
     openPatientBtn.addEventListener("click", () => patientModal.classList.remove("hidden"));
@@ -854,25 +876,69 @@ async function fetchBlynkHardwareData() {
   try {
     for (const bedId in beds) {
       const bed = beds[bedId];
-      const tokenToUse = bed.blynk_token || blynkToken;
+      const tokenToUse = (bed.blynk_token || blynkToken || "").trim();
       if (!tokenToUse || tokenToUse.startsWith("DEMO_")) continue;
 
-      const url = `https://${blynkServer}/external/api/get?token=${tokenToUse}&V0&V1&V2&V3&V4`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.V0 !== undefined) bed.current_volume_ml = parseFloat(data.V0);
-        if (data.V1 !== undefined) bed.percentage = parseFloat(data.V1);
-        if (data.V2 !== undefined) bed.flow_rate_mlm = parseFloat(data.V2);
-        if (data.V3 !== undefined) bed.tte_minutes = parseInt(data.V3);
-        
-        // Re-evaluate verified status to guard against hardware startup glitch
+      let fetchedData = null;
+
+      // Method 1: Try proxy through backend server (avoids browser CORS & resolves region)
+      try {
+        const proxyUrl = `${API_BASE_URL}/blynk/telemetry?token=${encodeURIComponent(tokenToUse)}&server=${encodeURIComponent(blynkServer)}`;
+        const res = await fetch(proxyUrl);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.status === "success" && json.data) {
+            fetchedData = json.data;
+            if (json.server && json.server !== blynkServer) {
+              blynkServer = json.server;
+              localStorage.setItem("blynk_server", blynkServer);
+            }
+          }
+        }
+      } catch (proxyErr) {
+        // Backend offline, fallback to direct browser fetch
+      }
+
+      // Method 2: Direct browser fetch fallback (if backend is offline/standalone)
+      if (!fetchedData) {
+        try {
+          const directUrl = `https://${blynkServer}/external/api/get?token=${encodeURIComponent(tokenToUse)}&v0&v1&v2&v3&v4`;
+          const res = await fetch(directUrl);
+          if (res.ok) {
+            const raw = await res.json();
+            fetchedData = {
+              v0: raw.v0 !== undefined ? raw.v0 : raw.V0,
+              v1: raw.v1 !== undefined ? raw.v1 : raw.V1,
+              v2: raw.v2 !== undefined ? raw.v2 : raw.V2,
+              v3: raw.v3 !== undefined ? raw.v3 : raw.V3,
+              v4: raw.v4 !== undefined ? raw.v4 : raw.V4
+            };
+          }
+        } catch (directErr) {
+          console.warn("Direct Blynk fetch failed (likely browser CORS policy):", directErr);
+        }
+      }
+
+      if (fetchedData) {
+        const v0 = fetchedData.v0 !== undefined ? fetchedData.v0 : fetchedData.V0;
+        const v1 = fetchedData.v1 !== undefined ? fetchedData.v1 : fetchedData.V1;
+        const v2 = fetchedData.v2 !== undefined ? fetchedData.v2 : fetchedData.V2;
+        const v3 = fetchedData.v3 !== undefined ? fetchedData.v3 : fetchedData.V3;
+
+        if (v0 !== undefined) bed.current_volume_ml = parseFloat(v0);
+        if (v1 !== undefined) bed.percentage = parseFloat(v1);
+        if (v2 !== undefined) bed.flow_rate_mlm = parseFloat(v2);
+        if (v3 !== undefined) bed.tte_minutes = parseInt(v3);
+
+        // Re-evaluate clinical status
         bed.status = evaluateBedStatus(
           bed.current_volume_ml !== undefined ? bed.current_volume_ml : 500,
           bed.percentage !== undefined ? bed.percentage : 100,
           bed.flow_rate_mlm !== undefined ? bed.flow_rate_mlm : 4.6,
           bed.tte_minutes !== undefined ? bed.tte_minutes : 96
         );
+
+        updateBlynkStatusUI(true, "Live (Syncing)");
 
         if (isDbConnected) {
           try {
@@ -890,9 +956,13 @@ async function fetchBlynkHardwareData() {
             });
           } catch (e) { console.warn(e); }
         }
+      } else {
+        updateBlynkStatusUI(false, "Check Token / CORS");
       }
     }
-  } catch (err) { console.warn(err); }
+  } catch (err) {
+    console.warn("Telemetry polling error:", err);
+  }
 }
 
 // --- RESET BOTTLE / REFILL ACTION ---
@@ -904,10 +974,12 @@ async function triggerResetBottle(bedId) {
     targetBed.percentage = 100.0;
     targetBed.status = "NORMAL";
 
-    const tokenToUse = targetBed.blynk_token || blynkToken;
+    const tokenToUse = (targetBed.blynk_token || blynkToken || "").trim();
     if (tokenToUse && !tokenToUse.startsWith("DEMO_")) {
       try {
-        fetch(`https://${blynkServer}/external/api/update?token=${tokenToUse}&V5=1`);
+        // Send reset signal V5=1 via backend proxy or direct
+        fetch(`${API_BASE_URL}/blynk/update?token=${encodeURIComponent(tokenToUse)}&pin=V5&value=1&server=${encodeURIComponent(blynkServer)}`)
+          .catch(() => fetch(`https://${blynkServer}/external/api/update?token=${tokenToUse}&V5=1`).catch(() => {}));
       } catch (e) { console.warn(e); }
     }
 
@@ -1069,10 +1141,146 @@ function initAnalyticsCharts() {
   }
 }
 
+function updateSimButtonUI() {
+  const toggleBtn = document.getElementById("toggle-sim-btn");
+  const simText = document.getElementById("sim-mode-text");
+  if (!toggleBtn || !simText) return;
+
+  if (isSimulationMode) {
+    simText.textContent = "Mode: Live Simulation";
+    toggleBtn.className = "btn-3d px-4 py-2 rounded-full text-xs font-semibold border border-cyan-200/80 bg-cyan-50/80 text-cyan-700 hover:bg-cyan-100 flex items-center gap-1.5 shadow-2xs";
+  } else {
+    simText.textContent = "Mode: Blynk Cloud Live";
+    toggleBtn.className = "btn-3d px-4 py-2 rounded-full text-xs font-bold border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 flex items-center gap-1.5 shadow-2xs";
+  }
+}
+
+function updateBlynkStatusUI(isConnected, message) {
+  const badgeDot = document.getElementById("blynk-status-dot");
+  const badgeText = document.getElementById("blynk-status-text");
+  const connPill = document.getElementById("settings-conn-pill");
+
+  if (badgeDot && badgeText) {
+    if (isConnected) {
+      badgeDot.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm animate-pulse";
+      badgeText.textContent = `Blynk: Live (${blynkServer.split('.')[0]})`;
+    } else if (blynkToken) {
+      badgeDot.className = "w-2.5 h-2.5 rounded-full bg-amber-400";
+      badgeText.textContent = message || "Blynk: Connecting...";
+    } else {
+      badgeDot.className = "w-2.5 h-2.5 rounded-full bg-slate-400";
+      badgeText.textContent = "Blynk: Not Configured";
+    }
+  }
+
+  if (connPill) {
+    if (isConnected) {
+      connPill.className = "text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700";
+      connPill.textContent = "Online / Streaming";
+    } else {
+      connPill.className = "text-[10px] px-2 py-0.5 rounded-full font-bold bg-slate-100 text-slate-500";
+      connPill.textContent = blynkToken ? "Standby" : "Unconnected";
+    }
+  }
+}
+
 function saveHardwareSettings() {
-  const tok = document.getElementById("settings-token-input")?.value;
+  const tok = document.getElementById("settings-token-input")?.value.trim();
+  const srv = document.getElementById("settings-server-input")?.value.trim() || "blynk.cloud";
+
   if (tok) {
+    blynkToken = tok;
+    blynkServer = srv;
     localStorage.setItem("blynk_token", tok);
-    alert("Hardware settings saved successfully!");
+    localStorage.setItem("blynk_server", srv);
+
+    // Apply token to default beds
+    if (beds[activeSelectedBed]) {
+      beds[activeSelectedBed].blynk_token = tok;
+    }
+    if (beds["ICU-01"]) beds["ICU-01"].blynk_token = tok;
+
+    // Turn off simulation and switch to live Blynk mode
+    isSimulationMode = false;
+    updateSimButtonUI();
+    updateBlynkStatusUI(false, "Connecting to Blynk...");
+
+    // Trigger immediate fetch
+    fetchBlynkHardwareData();
+    alert(`Success: Blynk Device Auth Code saved!\nSystem switched to Live Blynk Hardware Mode.`);
+  } else {
+    alert("Please enter a valid Blynk Auth Token.");
+  }
+}
+
+async function testBlynkConnection() {
+  const tok = document.getElementById("settings-token-input")?.value.trim() || blynkToken;
+  const srv = document.getElementById("settings-server-input")?.value.trim() || blynkServer;
+  const resultBox = document.getElementById("blynk-test-result");
+  const testBtn = document.getElementById("test-blynk-btn");
+
+  if (!tok) {
+    alert("Please enter a Blynk Auth Token to test.");
+    return;
+  }
+
+  if (resultBox) {
+    resultBox.classList.remove("hidden");
+    resultBox.className = "p-3 rounded-xl text-[11px] font-mono whitespace-pre-wrap bg-slate-100 text-slate-700 border border-slate-200";
+    resultBox.textContent = `Testing connection to Blynk Cloud (${srv})...\nToken: ${tok.substring(0, 8)}...`;
+  }
+  if (testBtn) testBtn.textContent = "Testing...";
+
+  try {
+    let success = false;
+    let details = "";
+
+    // Method 1: Try via backend proxy (recommended, bypasses CORS)
+    try {
+      const res = await fetch(`${API_BASE_URL}/blynk/telemetry?token=${encodeURIComponent(tok)}&server=${encodeURIComponent(srv)}`);
+      const data = await res.json();
+      if (res.ok && data.status === "success") {
+        success = true;
+        details = `✓ Connected via Backend Proxy\nServer: ${data.server}\nDatastreams Received:\n` + JSON.stringify(data.data, null, 2);
+      } else {
+        details = `Backend proxy response: ` + JSON.stringify(data, null, 2);
+      }
+    } catch (e) {
+      details = `Backend server not reachable (${e.message}). Testing direct browser connection...`;
+    }
+
+    // Method 2: If backend not available, test direct browser fetch
+    if (!success) {
+      try {
+        const directRes = await fetch(`https://${srv}/external/api/get?token=${encodeURIComponent(tok)}&v0&v1&v2&v3&v4`);
+        if (directRes.ok) {
+          const directData = await directRes.json();
+          success = true;
+          details = `✓ Connected Directly to Blynk Cloud!\nDatastreams: ` + JSON.stringify(directData, null, 2);
+        } else {
+          details += `\nDirect fetch returned HTTP ${directRes.status}: ${await directRes.text()}`;
+        }
+      } catch (directErr) {
+        details += `\nDirect browser fetch failed (blocked by browser CORS security policy).\nTo resolve this on any laptop, launch the server using 'python start_flowguard.py' or access via http://<HOST_IP>:8000.`;
+      }
+    }
+
+    if (resultBox) {
+      resultBox.className = success 
+        ? "p-3 rounded-xl text-[11px] font-mono whitespace-pre-wrap bg-emerald-50 text-emerald-800 border border-emerald-200"
+        : "p-3 rounded-xl text-[11px] font-mono whitespace-pre-wrap bg-rose-50 text-rose-800 border border-rose-200";
+      resultBox.textContent = details;
+    }
+
+    if (success) {
+      updateBlynkStatusUI(true, "Connected & Verified");
+    }
+  } catch (err) {
+    if (resultBox) {
+      resultBox.className = "p-3 rounded-xl text-[11px] font-mono whitespace-pre-wrap bg-rose-50 text-rose-800 border border-rose-200";
+      resultBox.textContent = `Connection error: ${err.message}`;
+    }
+  } finally {
+    if (testBtn) testBtn.textContent = "Test Connection";
   }
 }

@@ -87,6 +87,12 @@
       </div>
 
       <div class="flex items-center gap-3">
+        <!-- Blynk Live Status Badge & Quick Settings -->
+        <button onclick="switchTab('settings')" id="blynk-status-badge" class="btn-3d px-3.5 py-2 rounded-full text-xs font-semibold border border-slate-200 bg-white/80 text-slate-700 hover:bg-white flex items-center gap-2 shadow-2xs" title="Click to view or edit Blynk Auth Code">
+          <span class="w-2.5 h-2.5 rounded-full bg-slate-400" id="blynk-status-dot"></span>
+          <span id="blynk-status-text">Blynk: Not Configured</span>
+        </button>
+
         <button id="toggle-sound-btn" class="btn-3d px-4 py-2 rounded-full text-xs font-semibold border border-white/80 bg-white/80 text-slate-700 hover:bg-white flex items-center gap-1.5 shadow-2xs">
           <i data-lucide="volume-2" class="w-3.5 h-3.5 text-cyan-600" id="sound-icon"></i>
           <span id="sound-text">Audio: Continuous ON</span>
@@ -356,28 +362,74 @@
           <p class="text-xs text-slate-500">Configure ESP32 load cell nodes, Blynk Auth Tokens, and Audio Chime Synthesizer</p>
         </div>
 
-        <div class="card-3d p-6 max-w-2xl space-y-4">
-          <h3 class="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2">Hardware Node Parameters</h3>
-          <div class="space-y-3 text-xs">
-            <div>
-              <label class="block font-semibold text-slate-700 mb-1">Load Cell Calibration Factor</label>
-              <input type="text" value="1064.4" readonly class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 font-mono">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Card 1: Blynk Auth Token & Cloud Bridge Setup -->
+          <div class="card-3d p-6 space-y-4">
+            <h3 class="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2 flex items-center justify-between">
+              <span>Blynk Cloud Device Authorization</span>
+              <span id="settings-conn-pill" class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-slate-100 text-slate-500">Unconnected</span>
+            </h3>
+            <div class="space-y-3 text-xs">
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Blynk Auth Token (Device Code)</label>
+                <div class="relative">
+                  <input type="text" id="settings-token-input" placeholder="Paste your 32-character Blynk Device Token" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 font-mono focus:ring-2 focus:ring-cyan-500 outline-none text-xs">
+                </div>
+                <p class="text-[10px] text-slate-400 mt-1">Found in Blynk Console &rarr; Device &rarr; Device Info &rarr; Auth Token</p>
+              </div>
+
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Blynk Cloud Server Region</label>
+                <select id="settings-server-input" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-cyan-500 outline-none font-semibold">
+                  <option value="blynk.cloud">blynk.cloud (Global / Auto-Detect Region)</option>
+                  <option value="blr1.blynk.cloud">blr1.blynk.cloud (India / Asia-Pacific)</option>
+                  <option value="ny3.blynk.cloud">ny3.blynk.cloud (North & South America)</option>
+                  <option value="fra1.blynk.cloud">fra1.blynk.cloud (Europe / Frankfurt)</option>
+                </select>
+              </div>
+
+              <div class="flex items-center gap-2 pt-2">
+                <button onclick="saveHardwareSettings()" class="btn-3d flex-1 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl font-bold text-xs shadow-md">
+                  Save & Connect Live
+                </button>
+                <button onclick="testBlynkConnection()" id="test-blynk-btn" class="btn-3d px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs">
+                  Test Connection
+                </button>
+              </div>
+
+              <!-- Live Diagnostic Log Box -->
+              <div id="blynk-test-result" class="hidden p-3 rounded-xl text-[11px] font-mono whitespace-pre-wrap"></div>
             </div>
-            <div>
-              <label class="block font-semibold text-slate-700 mb-1">ESP32 Pinout Configuration</label>
-              <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 font-mono text-[11px] space-y-1">
-                <div>HX711 DOUT: GPIO 21 | SCK: GPIO 22</div>
-                <div>SSD1306 OLED: SDA GPIO 18 | SCL GPIO 19</div>
-                <div>Reset / Set-Full Button: GPIO 4</div>
+          </div>
+
+          <!-- Card 2: Hardware Node Pinout & Load Cell Parameters -->
+          <div class="card-3d p-6 space-y-4">
+            <h3 class="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2">ESP32 Hardware & Datastream Specs</h3>
+            <div class="space-y-3 text-xs">
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Load Cell Calibration Factor</label>
+                <input type="text" value="1064.4" readonly class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-800 font-mono">
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">ESP32 Pinout Wiring</label>
+                <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200 font-mono text-[11px] space-y-0.5">
+                  <div>HX711 DOUT: GPIO 21 | SCK: GPIO 22</div>
+                  <div>SSD1306 OLED: SDA GPIO 18 | SCL GPIO 19</div>
+                  <div>Tactile Button: GPIO 4 | Buzzer: GPIO 5</div>
+                </div>
+              </div>
+              <div>
+                <label class="block font-semibold text-slate-700 mb-1">Blynk Virtual Pin Datastreams</label>
+                <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-[11px] space-y-0.5">
+                  <div><strong class="font-mono text-cyan-700">V0</strong>: Live Volume (ml)</div>
+                  <div><strong class="font-mono text-cyan-700">V1</strong>: Fluid Remaining Percentage (0-100%)</div>
+                  <div><strong class="font-mono text-cyan-700">V2</strong>: Infusion Flow Rate (ml/min)</div>
+                  <div><strong class="font-mono text-cyan-700">V3</strong>: Estimated Time to Empty (mins)</div>
+                  <div><strong class="font-mono text-cyan-700">V4</strong>: Status (NORMAL, BLOCKED, etc.)</div>
+                  <div><strong class="font-mono text-cyan-700">V5</strong>: Remote Set-Full Trigger</div>
+                </div>
               </div>
             </div>
-            <div>
-              <label class="block font-semibold text-slate-700 mb-1">Default Blynk Auth Token</label>
-              <input type="text" id="settings-token-input" placeholder="e.g. DEMO_TOKEN_1" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 font-mono">
-            </div>
-            <button onclick="saveHardwareSettings()" class="btn-3d px-4 py-2.5 bg-cyan-600 text-white rounded-2xl font-bold text-xs shadow-md">
-              Save Hardware Settings
-            </button>
           </div>
         </div>
       </main>
