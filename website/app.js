@@ -439,16 +439,40 @@ function populateNurseSelectDropdown() {
 }
 
 // --- Render Page View 1: Bed Cards Grid ---
-// --- Predictive Triage Evaluator Guard ---
-function evaluateBedStatus(vol, pct, flow, tte) {
-  if (vol <= 10.0 || pct <= 2.0) return "EMPTY";
-  // Guard: Volume > 75ml AND Percentage > 25% MUST NEVER be CRITICAL_LOW
-  if (vol > 75.0 && pct > 25.0) {
-    if (flow < 0.1 && pct > 15.0 && vol > 20.0) return "BLOCKED";
-    return "NORMAL";
+// Map to track stagnation / zero flow duration per bed: { bedId: startTime }
+const zeroFlowTimers = {};
+
+// --- Predictive Triage Evaluator Guard (7-Second Weight-Stagnation Occlusion Detection) ---
+function evaluateBedStatus(vol, pct, flow, tte, fullVol = 500, bedId = "ICU-01") {
+  // 1. Truly Empty
+  if (vol <= 5.0 || pct <= 2.0) {
+    delete zeroFlowTimers[bedId];
+    return "EMPTY";
   }
-  if (pct <= 15.0 || vol <= 75.0 || (tte <= 5 && pct <= 25.0)) return "CRITICAL_LOW";
-  if (flow < 0.1 && pct > 15.0 && vol > 20.0) return "BLOCKED";
+
+  // 2. Critical Low threshold: <= 15% of bottle capacity (works for 100ml, 250ml, 500ml, 1000ml)
+  const criticalThreshold = Math.max(15.0, fullVol * 0.15);
+  if (pct <= 15.0 || vol <= criticalThreshold || (tte <= 5 && pct <= 25.0)) {
+    delete zeroFlowTimers[bedId];
+    return "CRITICAL_LOW";
+  }
+
+  // 3. Occlusion / Line Blockage Check:
+  // If weight remains stagnant / flow rate is 0.0 (< 0.1 ml/min) while bottle has fluid:
+  // Triggers even if bottle is full (85% - 100%) after the 7-second time limit!
+  if (flow < 0.1 && vol > 5.0) {
+    if (!zeroFlowTimers[bedId]) {
+      zeroFlowTimers[bedId] = Date.now();
+    }
+    const elapsedSeconds = (Date.now() - zeroFlowTimers[bedId]) / 1000;
+    if (elapsedSeconds >= 7.0) {
+      return "BLOCKED";
+    }
+    return "NORMAL"; // 7-second grace window
+  }
+
+  // 4. Fluid is actively flowing -> reset stagnation timer
+  delete zeroFlowTimers[bedId];
   return "NORMAL";
 }
 
@@ -464,13 +488,15 @@ function renderBedCards() {
   let alertCount = 0;
 
   Object.values(beds).forEach(bed => {
-    const vol = bed.current_volume_ml !== undefined ? bed.current_volume_ml : 500;
+    const fullVol = bed.full_volume_ml || 500;
+    const vol = bed.current_volume_ml !== undefined ? bed.current_volume_ml : fullVol;
     const pct = bed.percentage !== undefined ? bed.percentage : 100;
     const flow = bed.flow_rate_mlm !== undefined ? bed.flow_rate_mlm : 4.6;
     const tte = bed.tte_minutes !== undefined ? bed.tte_minutes : 96;
-    
-    // Evaluate status dynamically with guard logic
-    bed.status = evaluateBedStatus(vol, pct, flow, tte);
+    const bedId = bed.bed_id || bed.id || "ICU-01";
+
+    // Evaluate status dynamically with 7s stagnation detection
+    bed.status = evaluateBedStatus(vol, pct, flow, tte, fullVol, bedId);
 
     const card = document.createElement("div");
     let badgeClass = "bg-emerald-100 text-emerald-700 border-emerald-200";
@@ -495,7 +521,6 @@ function renderBedCards() {
     const doctorName = bed.doctor_name || "Dr. Petra Winburry";
     const assignedNurse = bed.assigned_nurse || "Nurse Aishani";
     const fluidType = bed.fluid_type || "Saline 0.9%";
-    const bedId = bed.bed_id || bed.id;
 
     const strokeDash = 150.8 * (1 - Math.min(100, Math.max(0, pct)) / 100);
 
@@ -563,10 +588,13 @@ function renderBedCards() {
           </strong>
         </div>
         <div class="flex items-center gap-1.5">
-          <button onclick="triggerResetBottle('${bedId}')" title="Set New Bottle (100%)" class="btn-3d px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-full transition flex items-center gap-1 text-[11px] shadow-sm">
-            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Set Full
+          <button onclick="triggerResetBottle('${bedId}')" title="Set New Bottle (100% Full Capacity)" class="btn-3d px-2.5 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-full transition flex items-center gap-1 text-[11px] shadow-sm">
+            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Full
           </button>
-          <button onclick="triggerDischargeBed('${bedId}')" title="Discharge Patient" class="btn-3d px-2.5 py-1.5 bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-full transition">
+          <button onclick="triggerTareHook('${bedId}')" title="Zero Tare Calibration (0.0g Empty Hook)" class="btn-3d px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-full transition flex items-center gap-1 text-[11px] shadow-sm">
+            <i data-lucide="scale" class="w-3.5 h-3.5"></i> Tare
+          </button>
+          <button onclick="triggerDischargeBed('${bedId}')" title="Discharge Patient" class="btn-3d px-2 py-1.5 bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-full transition">
             <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
           </button>
         </div>
@@ -708,7 +736,8 @@ function renderPatientsTable() {
       <td class="py-3 px-4 text-cyan-700 font-semibold">${b.assigned_nurse || 'Nurse Aishani'}</td>
       <td class="py-3 px-4"><span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold ${b.status === 'NORMAL' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${b.status}</span></td>
       <td class="py-3 px-4 text-right">
-        <button onclick="triggerResetBottle('${b.bed_id}')" class="text-cyan-600 font-bold hover:underline mr-2">Reset</button>
+        <button onclick="triggerResetBottle('${b.bed_id}')" class="text-cyan-600 font-bold hover:underline mr-2">Full</button>
+        <button onclick="triggerTareHook('${b.bed_id}')" class="text-amber-600 font-bold hover:underline mr-2">Tare</button>
         <button onclick="triggerDischargeBed('${b.bed_id}')" class="text-rose-600 font-bold hover:underline">Discharge</button>
       </td>
     `;
@@ -855,7 +884,8 @@ async function updateTelemetry() {
 function simulateTelemetryData() {
   Object.values(beds).forEach(bed => {
     if (!bed) return;
-    let v = bed.current_volume_ml !== undefined ? bed.current_volume_ml : (bed.full_volume_ml || 500);
+    const full = bed.full_volume_ml || 500;
+    let v = bed.current_volume_ml !== undefined ? bed.current_volume_ml : full;
     let rate = bed.flow_rate_mlm !== undefined ? bed.flow_rate_mlm : 4.6;
     if (rate <= 0) rate = 4.6;
     bed.flow_rate_mlm = rate;
@@ -864,10 +894,9 @@ function simulateTelemetryData() {
       v -= (rate / 60) * 3; // 3 seconds interval
       if (v < 0) v = 0;
       bed.current_volume_ml = Math.max(0, v);
-      const full = bed.full_volume_ml || 500;
       bed.percentage = Math.min(100, Math.max(0, (v / full) * 100));
       bed.tte_minutes = rate > 0.1 ? Math.max(1, Math.round(v / rate)) : 999;
-      bed.status = evaluateBedStatus(bed.current_volume_ml, bed.percentage, bed.flow_rate_mlm, bed.tte_minutes);
+      bed.status = evaluateBedStatus(bed.current_volume_ml, bed.percentage, bed.flow_rate_mlm, bed.tte_minutes, full, bed.bed_id || "ICU-01");
     }
   });
 }
@@ -925,17 +954,25 @@ async function fetchBlynkHardwareData() {
         const v2 = fetchedData.v2 !== undefined ? fetchedData.v2 : fetchedData.V2;
         const v3 = fetchedData.v3 !== undefined ? fetchedData.v3 : fetchedData.V3;
 
-        if (v0 !== undefined) bed.current_volume_ml = parseFloat(v0);
-        if (v1 !== undefined) bed.percentage = parseFloat(v1);
+        const fullVol = bed.full_volume_ml || 500;
+        if (v0 !== undefined) {
+          bed.current_volume_ml = parseFloat(v0);
+          // Recalculate percentage based on bed's configured full volume
+          bed.percentage = Math.min(100.0, Math.max(0.0, (bed.current_volume_ml / fullVol) * 100.0));
+        } else if (v1 !== undefined) {
+          bed.percentage = parseFloat(v1);
+        }
         if (v2 !== undefined) bed.flow_rate_mlm = parseFloat(v2);
         if (v3 !== undefined) bed.tte_minutes = parseInt(v3);
 
-        // Re-evaluate clinical status
+        // Re-evaluate clinical status with 7s zero-flow stagnation check
         bed.status = evaluateBedStatus(
-          bed.current_volume_ml !== undefined ? bed.current_volume_ml : 500,
+          bed.current_volume_ml !== undefined ? bed.current_volume_ml : fullVol,
           bed.percentage !== undefined ? bed.percentage : 100,
           bed.flow_rate_mlm !== undefined ? bed.flow_rate_mlm : 4.6,
-          bed.tte_minutes !== undefined ? bed.tte_minutes : 96
+          bed.tte_minutes !== undefined ? bed.tte_minutes : 96,
+          fullVol,
+          bed.bed_id || bedId
         );
 
         updateBlynkStatusUI(true, "Live (Syncing)");
@@ -965,21 +1002,61 @@ async function fetchBlynkHardwareData() {
   }
 }
 
-// --- RESET BOTTLE / REFILL ACTION ---
+// --- ZERO TARE (0.0g EMPTY HOOK CALIBRATION) ACTION ---
+async function triggerTareHook(bedId) {
+  if (!confirm(`Perform Zero Tare for Bed ${bedId}?\n\nMake sure the hanger is EMPTY (no bottle hanging) so the load cell calibrates to 0.0g.`)) return;
+
+  const targetBed = beds[bedId];
+  const tokenToUse = (targetBed?.blynk_token || blynkToken || "").trim();
+
+  if (isDbConnected) {
+    try {
+      await fetch(`${API_BASE_URL}/beds/${bedId}/tare`, { method: "POST" });
+    } catch (e) {
+      console.warn("Backend tare route failed, sending direct signal:", e);
+    }
+  }
+
+  if (tokenToUse && !tokenToUse.startsWith("DEMO_")) {
+    try {
+      // Send V6=1 (Zero Tare) via proxy or direct
+      fetch(`${API_BASE_URL}/blynk/update?token=${encodeURIComponent(tokenToUse)}&pin=V6&value=1&server=${encodeURIComponent(blynkServer)}`)
+        .catch(() => fetch(`https://${blynkServer}/external/api/update?token=${tokenToUse}&V6=1`).catch(() => {}));
+    } catch (e) { console.warn(e); }
+  }
+
+  alert(`Zero Tare command sent for Bed ${bedId}!\nEmpty hook calibrated to 0.0g on ESP32 load cell.`);
+}
+
+// --- RESET BOTTLE / REFILL ACTION (Supports 100ml, 250ml, 500ml, 1000ml) ---
 async function triggerResetBottle(bedId) {
   const targetBed = beds[bedId];
+  const currentCap = targetBed?.full_volume_ml || 500;
+
+  const inputCap = prompt(
+    `Set New Saline Bottle (100% Full) for Bed ${bedId}:\n\nEnter Bottle Capacity in ml (e.g. 100, 250, 500, 1000):`,
+    currentCap
+  );
+  if (inputCap === null) return; // User cancelled
+
+  const newCapacity = parseFloat(inputCap) > 10.0 ? parseFloat(inputCap) : currentCap;
+
   if (targetBed) {
-    const full = targetBed.full_volume_ml || 500;
-    targetBed.current_volume_ml = full;
+    targetBed.full_volume_ml = newCapacity;
+    targetBed.current_volume_ml = newCapacity;
     targetBed.percentage = 100.0;
+    targetBed.flow_rate_mlm = 0.0;
     targetBed.status = "NORMAL";
+    zeroFlowTimers[bedId] = Date.now(); // 7-second grace timer starting upon bottle refill
 
     const tokenToUse = (targetBed.blynk_token || blynkToken || "").trim();
     if (tokenToUse && !tokenToUse.startsWith("DEMO_")) {
       try {
-        // Send reset signal V5=1 via backend proxy or direct
+        // Send V5=1 (Set Full) and V7={capacity} (Sync bottle capacity)
         fetch(`${API_BASE_URL}/blynk/update?token=${encodeURIComponent(tokenToUse)}&pin=V5&value=1&server=${encodeURIComponent(blynkServer)}`)
           .catch(() => fetch(`https://${blynkServer}/external/api/update?token=${tokenToUse}&V5=1`).catch(() => {}));
+        fetch(`${API_BASE_URL}/blynk/update?token=${encodeURIComponent(tokenToUse)}&pin=V7&value=${newCapacity}&server=${encodeURIComponent(blynkServer)}`)
+          .catch(() => fetch(`https://${blynkServer}/external/api/update?token=${tokenToUse}&V7=${newCapacity}`).catch(() => {}));
       } catch (e) { console.warn(e); }
     }
 
@@ -988,14 +1065,18 @@ async function triggerResetBottle(bedId) {
 
   if (isDbConnected) {
     try {
-      await fetch(`${API_BASE_URL}/beds/${bedId}/reset-full`, { method: "POST" });
+      await fetch(`${API_BASE_URL}/beds/${bedId}/reset-full`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ full_volume_ml: newCapacity })
+      });
       await fetchBedsFromDatabase();
     } catch (e) { console.error(e); }
   }
 
   renderAllViews();
   resetChartData();
-  alert(`Success: ${bedId} refilled to 100% Full (${beds[bedId]?.full_volume_ml || 500} ml). Active alerts cleared!`);
+  alert(`Success: Bed ${bedId} refilled to 100% Full (${newCapacity} ml).\nActive alerts cleared and sound chime stopped!`);
 }
 
 async function triggerDischargeBed(bedId) {
@@ -1284,3 +1365,14 @@ async function testBlynkConnection() {
     if (testBtn) testBtn.textContent = "Test Connection";
   }
 }
+
+// Explicit window bindings for inline HTML onclick handlers
+window.triggerResetBottle = triggerResetBottle;
+window.triggerTareHook = triggerTareHook;
+window.triggerDischargeBed = triggerDischargeBed;
+window.saveHardwareSettings = saveHardwareSettings;
+window.testBlynkConnection = testBlynkConnection;
+window.downloadCSVReport = downloadCSVReport;
+window.acknowledgeAlert = acknowledgeAlert;
+window.openEditNurseModal = openEditNurseModal;
+window.handleGlobalSearch = handleGlobalSearch;

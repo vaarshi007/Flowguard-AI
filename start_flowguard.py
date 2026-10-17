@@ -27,7 +27,7 @@ if __name__ == "__main__":
     port = 8000
 
     print("=" * 65)
-    print(" 🏥 FLOWGUARD-AI CLINICAL DASHBOARD & BACKEND SERVER ")
+    print(" [+] FLOWGUARD-AI CLINICAL DASHBOARD & BACKEND SERVER ")
     print("=" * 65)
     print(f" Local Web Interface  : http://localhost:{port}")
     print(f" Network Access (LAN) : http://{local_ip}:{port}")

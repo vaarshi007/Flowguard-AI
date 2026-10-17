@@ -397,6 +397,22 @@
                 </button>
               </div>
 
+              <!-- Quick Physical Node Calibration Actions -->
+              <div class="pt-3 border-t border-slate-100 space-y-2">
+                <div class="text-[11px] font-bold text-slate-700 flex items-center justify-between">
+                  <span>Hardware Remote Controls</span>
+                  <span class="text-[10px] text-slate-400">ESP32 Over-the-Air</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button onclick="triggerResetBottle(activeSelectedBed || 'ICU-01')" class="btn-3d flex-1 py-2 bg-cyan-50 hover:bg-cyan-100 text-cyan-700 border border-cyan-200 rounded-xl font-bold text-[11px] flex items-center justify-center gap-1.5 shadow-2xs">
+                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Set Full Bottle (V5)
+                  </button>
+                  <button onclick="triggerTareHook(activeSelectedBed || 'ICU-01')" class="btn-3d flex-1 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl font-bold text-[11px] flex items-center justify-center gap-1.5 shadow-2xs">
+                    <i data-lucide="scale" class="w-3.5 h-3.5"></i> Zero Tare 0.0g (V6)
+                  </button>
+                </div>
+              </div>
+
               <!-- Live Diagnostic Log Box -->
               <div id="blynk-test-result" class="hidden p-3 rounded-xl text-[11px] font-mono whitespace-pre-wrap"></div>
             </div>
@@ -411,22 +427,21 @@
                 <input type="text" value="1064.4" readonly class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-slate-800 font-mono">
               </div>
               <div>
-                <label class="block font-semibold text-slate-700 mb-1">ESP32 Pinout Wiring</label>
-                <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200 font-mono text-[11px] space-y-0.5">
-                  <div>HX711 DOUT: GPIO 21 | SCK: GPIO 22</div>
-                  <div>SSD1306 OLED: SDA GPIO 18 | SCL GPIO 19</div>
-                  <div>Tactile Button: GPIO 4 | Buzzer: GPIO 5</div>
+                <label class="block font-semibold text-slate-700 mb-1">Blynk Virtual Pin Mapping</label>
+                <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-[11px] space-y-0.5">
+                  <div><strong class="font-mono text-cyan-700">V0</strong>: Live Volume (ml) | <strong class="font-mono text-cyan-700">V1</strong>: Remaining % (0-100%)</div>
+                  <div><strong class="font-mono text-cyan-700">V2</strong>: Flow Rate (ml/min) | <strong class="font-mono text-cyan-700">V3</strong>: Time to Empty (mins)</div>
+                  <div><strong class="font-mono text-cyan-700">V4</strong>: Status | <strong class="font-mono text-cyan-700">V5</strong>: Set Full | <strong class="font-mono text-cyan-700">V6</strong>: Zero Tare | <strong class="font-mono text-cyan-700">V7</strong>: Full Vol (ml)</div>
                 </div>
               </div>
               <div>
-                <label class="block font-semibold text-slate-700 mb-1">Blynk Virtual Pin Datastreams</label>
-                <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-[11px] space-y-0.5">
-                  <div><strong class="font-mono text-cyan-700">V0</strong>: Live Volume (ml)</div>
-                  <div><strong class="font-mono text-cyan-700">V1</strong>: Fluid Remaining Percentage (0-100%)</div>
-                  <div><strong class="font-mono text-cyan-700">V2</strong>: Infusion Flow Rate (ml/min)</div>
-                  <div><strong class="font-mono text-cyan-700">V3</strong>: Estimated Time to Empty (mins)</div>
-                  <div><strong class="font-mono text-cyan-700">V4</strong>: Status (NORMAL, BLOCKED, etc.)</div>
-                  <div><strong class="font-mono text-cyan-700">V5</strong>: Remote Set-Full Trigger</div>
+                <label class="block font-semibold text-slate-700 mb-1">Blynk Cloud Push Notification Events</label>
+                <div class="p-2.5 bg-emerald-50/70 border border-emerald-200/80 rounded-xl text-[11px] space-y-1 text-slate-700">
+                  <div class="font-bold text-emerald-800">Add these Event Codes in Blynk Console &rarr; Template &rarr; Events:</div>
+                  <div>• <strong class="font-mono text-rose-700">critical_low</strong>: Triggered when fluid drops below 15%</div>
+                  <div>• <strong class="font-mono text-amber-700">line_blocked</strong>: Triggered when IV line is occluded/blocked</div>
+                  <div>• <strong class="font-mono text-rose-800">bottle_empty</strong>: Triggered when bottle has 0 ml remaining</div>
+                  <div class="text-[10px] text-slate-500 pt-1">Enable "Push notification to device" on each event to get mobile alerts!</div>
                 </div>
               </div>
             </div>
@@ -484,19 +499,23 @@
             <input type="text" id="form-room-no" required placeholder="ICU Room 201" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-cyan-500 outline-none">
           </div>
           <div>
-            <label class="block font-semibold text-slate-700 mb-1">Fluid Type</label>
-            <select id="form-fluid-type" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-cyan-500 outline-none">
+            <label class="block font-semibold text-slate-700 mb-1">Fluid Type & Standard Size</label>
+            <select id="form-fluid-type" onchange="const m = this.value.match(/(\d+)ml/); if(m) document.getElementById('form-full-volume').value = m[1];" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-cyan-500 outline-none">
               <option value="Saline 0.9% (500ml)">Saline 0.9% (500ml)</option>
+              <option value="Saline 0.9% (100ml)">Saline 0.9% (100ml Pediatric)</option>
+              <option value="Saline 0.9% (250ml)">Saline 0.9% (250ml)</option>
               <option value="Dextrose 5% (500ml)">Dextrose 5% (500ml)</option>
+              <option value="Dextrose 5% (250ml)">Dextrose 5% (250ml)</option>
               <option value="Ringer's Lactate (1000ml)">Ringer's Lactate (1000ml)</option>
               <option value="Blood Transfusion (350ml)">Blood Transfusion (350ml)</option>
+              <option value="Custom Infusion">Custom Infusion</option>
             </select>
           </div>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block font-semibold text-slate-700 mb-1">Full Volume (ml)</label>
-            <input type="number" id="form-full-volume" value="500" required class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-cyan-500 outline-none font-bold">
+            <label class="block font-semibold text-slate-700 mb-1">Full Volume Capacity (ml)</label>
+            <input type="number" id="form-full-volume" value="500" min="10" max="5000" required class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-cyan-500 outline-none font-bold">
           </div>
           <div>
             <label class="block font-semibold text-slate-700 mb-1">Blynk Auth Token</label>

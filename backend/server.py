@@ -253,19 +253,54 @@ def get_all_beds():
     conn.close()
     return [dict(row) for row in rows]
 
-def compute_clinical_status(volume_ml: float, percentage: float, flow_rate: float, tte_mins: int) -> str:
-    if volume_ml <= 10.0 or percentage <= 2.0:
+# In-memory zero flow duration tracker: { bed_id: start_timestamp }
+zero_flow_tracker = {}
+
+def compute_clinical_status(bed_id: str, volume_ml: float, percentage: float, flow_rate: float, tte_mins: int, full_volume_ml: float = 500.0) -> str:
+    # 1. Truly Empty
+    if volume_ml <= 5.0 or percentage <= 2.0:
+        zero_flow_tracker.pop(bed_id, None)
         return "EMPTY"
-    # Guard: Volume > 75ml AND Percentage > 25% MUST NEVER be CRITICAL_LOW
-    if volume_ml > 75.0 and percentage > 25.0:
-        if flow_rate < 0.1 and percentage > 15.0 and volume_ml > 20.0:
+
+    # 2. Critical Low threshold: <= 15% of total capacity (works dynamically for 100ml, 250ml, 500ml, 1000ml)
+    critical_threshold = max(15.0, full_volume_ml * 0.15)
+    if percentage <= 15.0 or volume_ml <= critical_threshold or (tte_mins <= 5 and percentage <= 25.0):
+        zero_flow_tracker.pop(bed_id, None)
+        return "CRITICAL_LOW"
+
+    # 3. Blockage / Occlusion Check:
+    # If flow is < 0.1 ml/min (weight stagnant) for >= 7 seconds -> Trigger BLOCKED!
+    # Works across ALL bottle volumes and percentages (even 85% - 100% full)!
+    if flow_rate < 0.1 and volume_ml > 5.0:
+        now = datetime.datetime.now().timestamp()
+        if bed_id not in zero_flow_tracker:
+            zero_flow_tracker[bed_id] = now
+        elapsed = now - zero_flow_tracker[bed_id]
+        if elapsed >= 7.0:
             return "BLOCKED"
         return "NORMAL"
-    if percentage <= 15.0 or volume_ml <= 75.0 or (tte_mins <= 5 and percentage <= 25.0):
-        return "CRITICAL_LOW"
-    if flow_rate < 0.1 and percentage > 15.0 and volume_ml > 20.0:
-        return "BLOCKED"
+
+    # 4. Fluid is actively flowing -> reset stagnation timer
+    zero_flow_tracker.pop(bed_id, None)
     return "NORMAL"
+
+def trigger_blynk_event_notification(token: str, alert_type: str, bed_id: str, volume_ml: float, full_vol: float):
+    if not token or token.startswith("DEMO_"):
+        return
+    code_map = {
+        "CRITICAL_LOW": ("critical_low", f"CRITICAL LOW: Bed {bed_id} fluid at {volume_ml:.1f}ml ({int((volume_ml/full_vol)*100)}%)!"),
+        "BLOCKED": ("line_blocked", f"WARNING: Bed {bed_id} IV Line Occluded/Blocked! Flow rate stopped."),
+        "EMPTY": ("bottle_empty", f"EMERGENCY: Bed {bed_id} Saline Bottle Empty (0ml)! Replace bottle.")
+    }
+    event_data = code_map.get(alert_type)
+    if not event_data:
+        return
+    code, desc = event_data
+    try:
+        url = f"https://blynk.cloud/external/api/logEvent?token={token}&code={code}&description={requests.utils.quote(desc)}"
+        requests.get(url, timeout=2)
+    except Exception:
+        pass
 
 @app.post("/api/beds")
 def add_or_update_bed(bed: BedCreate):
@@ -309,10 +344,16 @@ def remove_bed(bed_id: str):
 def ingest_telemetry(data: TelemetryIngest):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    
-    # Evaluate status with guard to prevent false alerts on full bottles
-    verified_status = compute_clinical_status(data.volume_ml, data.percentage, data.flow_rate_mlm, data.tte_minutes)
-    
+
+    # Look up bed's configured capacity & token
+    cursor.execute("SELECT full_volume_ml, blynk_token FROM beds WHERE bed_id = ?", (data.bed_id,))
+    bed_row = cursor.fetchone()
+    full_vol = bed_row[0] if bed_row and bed_row[0] else 500.0
+    bed_token = bed_row[1] if bed_row and bed_row[1] else ""
+
+    # Evaluate clinical status with 7-second stagnation blockage detection
+    verified_status = compute_clinical_status(data.bed_id, data.volume_ml, data.percentage, data.flow_rate_mlm, data.tte_minutes, full_vol)
+
     cursor.execute("""
         UPDATE beds SET
             current_volume_ml = ?,
@@ -341,6 +382,8 @@ def ingest_telemetry(data: TelemetryIngest):
                 INSERT INTO alert_logs (bed_id, alert_type, severity, blocked_duration_mins)
                 VALUES (?, ?, ?, ?)
             """, (data.bed_id, verified_status, severity, 1 if verified_status == "BLOCKED" else 0))
+            # Send push notification to Blynk App!
+            trigger_blynk_event_notification(bed_token, verified_status, data.bed_id, data.volume_ml, full_vol)
         else:
             if verified_status == "BLOCKED":
                 cursor.execute("""
@@ -358,9 +401,12 @@ def ingest_telemetry(data: TelemetryIngest):
     conn.close()
     return {"status": "success", "verified_status": verified_status}
 
-# --- Reset Bottle / Refill Endpoint (Clears Active Alerts) ---
+class ResetFullPayload(BaseModel):
+    full_volume_ml: Optional[float] = None
+
+# --- Reset Bottle / Refill Endpoint (Clears Active Alerts & Supports Any Capacity) ---
 @app.post("/api/beds/{bed_id}/reset-full")
-def reset_bottle_full(bed_id: str):
+def reset_bottle_full(bed_id: str, payload: Optional[ResetFullPayload] = None):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("SELECT full_volume_ml, blynk_token FROM beds WHERE bed_id = ?", (bed_id,))
@@ -370,33 +416,62 @@ def reset_bottle_full(bed_id: str):
         raise HTTPException(status_code=404, detail="Bed not found")
 
     full_vol, token = row[0], row[1]
-    
+    if payload and payload.full_volume_ml and payload.full_volume_ml > 10.0:
+        full_vol = payload.full_volume_ml
+
     # 1. Reset Bed to NORMAL and 100% Volume
     cursor.execute("""
         UPDATE beds SET
-            current_volume_ml = full_volume_ml,
+            full_volume_ml = ?,
+            current_volume_ml = ?,
             percentage = 100.0,
             status = 'NORMAL',
             last_updated = CURRENT_TIMESTAMP
         WHERE bed_id = ?
-    """, (bed_id,))
-    
+    """, (full_vol, full_vol, bed_id))
+
     # 2. Immediately Resolve & Clear Active Alert Logs for this bed!
     cursor.execute("""
         UPDATE alert_logs SET resolved_at = CURRENT_TIMESTAMP
         WHERE bed_id = ? AND resolved_at IS NULL
     """, (bed_id,))
 
+    # Give 7-second grace window starting from refill
+    zero_flow_tracker[bed_id] = datetime.datetime.now().timestamp()
+
     conn.commit()
     conn.close()
 
     if token:
         try:
-            requests.get(f"https://blynk.cloud/external/api/update?token={token}&V5=1", timeout=3)
+            # V5=1 (Set Full trigger) and V7={full_vol} (Sync bottle capacity)
+            requests.get(f"https://blynk.cloud/external/api/update?token={token}&V5=1&V7={full_vol}", timeout=3)
         except Exception:
             pass
 
-    return {"message": f"Bed {bed_id} reset to 100% full and alert cleared!", "full_volume_ml": full_vol}
+    return {"message": f"Bed {bed_id} reset to 100% full ({full_vol} ml) and active alerts cleared!", "full_volume_ml": full_vol}
+
+# --- Zero Tare Endpoint (Sends V6=1 to ESP32 for 0.0g Tare) ---
+@app.post("/api/beds/{bed_id}/tare")
+def tare_bed_hook(bed_id: str):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT blynk_token FROM beds WHERE bed_id = ?", (bed_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Bed not found")
+
+    token = row[0]
+    conn.close()
+
+    if token:
+        try:
+            requests.get(f"https://blynk.cloud/external/api/update?token={token}&V6=1", timeout=3)
+        except Exception:
+            pass
+
+    return {"message": f"Zero Tare (0.0g) command sent to Bed {bed_id}"}
 
 @app.get("/api/alerts")
 def get_alerts():

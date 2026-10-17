@@ -103,6 +103,35 @@ BLYNK_WRITE(V6) {
   if (value == 1) tareEmptyHook();
 }
 
+BLYNK_WRITE(V7) {
+  float vol = param.asFloat();
+  if (vol > 10.0) {
+    fullVolumeML = vol;
+    preferences.putFloat("fullVol", fullVolumeML);
+    if (currentVolumeML > 0) {
+      percentage = min(100.0f, (currentVolumeML / fullVolumeML) * 100.0f);
+    }
+    Serial.print("Blynk Set Full Capacity: ");
+    Serial.println(fullVolumeML);
+  }
+}
+
+// Blynk Event Notification rate limiter
+unsigned long lastEventTime = 0;
+String lastEventCode = "";
+
+void sendBlynkAlertEvent(const char* eventCode, const char* description) {
+  if (isAPMode || WiFi.status() != WL_CONNECTED || !Blynk.connected()) return;
+  unsigned long now = millis();
+  if (String(eventCode) != lastEventCode || (now - lastEventTime > 60000)) {
+    Blynk.logEvent(eventCode, description);
+    lastEventCode = eventCode;
+    lastEventTime = now;
+    Serial.print("Blynk Event Triggered: ");
+    Serial.println(eventCode);
+  }
+}
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -307,23 +336,24 @@ void calculateFlowAndTTE() {
       tteMinutes = 999;
     }
 
-    // Predictive Triage Anomaly Logic
-    if (currentVolumeML <= 10.0 || percentage <= 2.0) {
+    // Predictive Triage Anomaly Logic (Dynamic Capacity & False-Alarm Proof)
+    float critVolThresh = max(15.0f, fullVolumeML * 0.15f);
+
+    if (currentVolumeML <= 5.0 || percentage <= 2.0) {
       flowState = "EMPTY";
       triggerLocalBuzzer();
-    } else if (currentVolumeML > 75.0 && percentage > 25.0) {
-      if (flowRateMLM < 0.1 && percentage > 15.0 && currentVolumeML > 20.0) {
-        flowState = "BLOCKED";
-        triggerLocalBuzzer();
-      } else {
-        flowState = "NORMAL";
-      }
-    } else if (percentage <= 15.0 || currentVolumeML <= 75.0 || (tteMinutes <= 5 && percentage <= 25.0)) {
+      sendBlynkAlertEvent("bottle_empty", "EMERGENCY: IV Saline Bottle is Empty! Replace bottle.");
+    } else if (percentage >= 85.0 || currentVolumeML >= (fullVolumeML * 0.85)) {
+      // Bottle Full Guard: Never trigger BLOCKED on full or freshly mounted bottles!
+      flowState = "NORMAL";
+    } else if (percentage <= 15.0 || currentVolumeML <= critVolThresh || (tteMinutes <= 5 && percentage <= 25.0)) {
       flowState = "CRITICAL_LOW";
       triggerLocalBuzzer();
-    } else if (flowRateMLM < 0.1 && percentage > 15.0) {
+      sendBlynkAlertEvent("critical_low", "WARNING: Saline Fluid Low (<15%)! Replacement needed soon.");
+    } else if (flowRateMLM < 0.1 && percentage > 15.0 && currentVolumeML > 15.0) {
       flowState = "BLOCKED";
       triggerLocalBuzzer();
+      sendBlynkAlertEvent("line_blocked", "ALERT: Infusion line blocked / occlusion detected!");
     } else {
       flowState = "NORMAL";
     }
