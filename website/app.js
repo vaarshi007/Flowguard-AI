@@ -93,6 +93,21 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
+// --- Mobile Drawer Toggle (Global Window Scope) ---
+window.toggleMobileMenu = function(open) {
+  const sidebar = document.getElementById("main-sidebar");
+  const backdrop = document.getElementById("mobile-drawer-backdrop");
+  if (!sidebar || !backdrop) return;
+
+  if (open) {
+    sidebar.classList.remove("-translate-x-full");
+    backdrop.classList.remove("hidden");
+  } else {
+    sidebar.classList.add("-translate-x-full");
+    backdrop.classList.add("hidden");
+  }
+};
+
 // --- SPA Page View Switcher (Global Window Scope) ---
 window.switchTab = function(tabName) {
   currentTab = tabName;
@@ -102,7 +117,8 @@ window.switchTab = function(tabName) {
   const target = document.getElementById(`view-${tabName}`);
   if (target) target.classList.remove("hidden");
 
-  const navBtns = document.querySelectorAll("nav button");
+  // Update Desktop Sidebar Nav Buttons
+  const navBtns = document.querySelectorAll("aside nav button");
   navBtns.forEach(btn => {
     btn.classList.remove("nav-active", "text-white");
     btn.classList.add("text-slate-600");
@@ -112,6 +128,18 @@ window.switchTab = function(tabName) {
   if (activeBtn) {
     activeBtn.classList.add("nav-active");
     activeBtn.classList.remove("text-slate-600");
+  }
+
+  // Update Mobile & Tablet Bottom Nav Buttons
+  const mobNavBtns = document.querySelectorAll("nav[class*='lg:hidden'] button");
+  mobNavBtns.forEach(btn => {
+    btn.classList.remove("text-cyan-600", "bg-cyan-50/80");
+    btn.classList.add("text-slate-500");
+  });
+  const mobActiveBtn = document.getElementById(`mob-nav-${tabName}`);
+  if (mobActiveBtn) {
+    mobActiveBtn.classList.remove("text-slate-500");
+    mobActiveBtn.classList.add("text-cyan-600", "bg-cyan-50/80");
   }
 
   if (tabName === 'analytics') initAnalyticsCharts();
@@ -204,11 +232,11 @@ async function fetchBedsFromDatabase() {
     const res = await fetch(`${API_BASE_URL}/beds`);
     if (res.ok) {
       const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
-        const newBeds = {};
+      const newBeds = {};
+      if (Array.isArray(data)) {
         data.forEach(bed => { newBeds[bed.bed_id] = bed; });
-        beds = newBeds;
       }
+      beds = newBeds;
       populateBedSelectDropdown();
       renderAllViews();
     }
@@ -221,7 +249,9 @@ async function fetchNursesFromDatabase() {
     if (res.ok) {
       const data = await res.json();
       const newNurses = {};
-      data.forEach(n => { newNurses[n.nurse_id] = n; });
+      if (Array.isArray(data)) {
+        data.forEach(n => { newNurses[n.nurse_id] = n; });
+      }
       nurses = newNurses;
       renderNurseRoster();
       populateNurseSelectDropdown();
@@ -235,7 +265,9 @@ async function fetchDoctorsFromDatabase() {
     if (res.ok) {
       const data = await res.json();
       const newDocs = {};
-      data.forEach(d => { newDocs[d.doc_id] = d; });
+      if (Array.isArray(data)) {
+        data.forEach(d => { newDocs[d.doc_id] = d; });
+      }
       doctors = newDocs;
       renderDoctorsGrid();
     }
@@ -378,8 +410,9 @@ function setupEventListeners() {
       const nShift = document.getElementById("nurse-form-shift")?.value || "Morning (07:00 - 15:00)";
       const nStatus = document.getElementById("nurse-form-status")?.value || "On Duty";
       const nContact = document.getElementById("nurse-form-contact")?.value.trim() || "+91 98765 43210";
+      const nPhoto = document.getElementById("nurse-form-photo")?.value.trim() || "";
 
-      const newNurseObj = { nurse_id: nId, name: nName, shift: nShift, status: nStatus, contact: nContact, assigned_count: 0 };
+      const newNurseObj = { nurse_id: nId, name: nName, shift: nShift, status: nStatus, contact: nContact, photo_url: nPhoto, assigned_count: 0 };
       nurses[nId] = newNurseObj;
       renderNurseRoster();
       populateNurseSelectDropdown();
@@ -391,12 +424,70 @@ function setupEventListeners() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(newNurseObj)
           });
+          await fetchNursesFromDatabase();
         } catch (err) { console.warn(err); }
       }
 
       if (nurseModal) nurseModal.classList.add("hidden");
       nurseForm.reset();
-      alert(`Success: ${nName} added to Nurse Roster!`);
+      alert(`Success: ${nName} saved to Nurse Roster!`);
+    });
+  }
+
+  // Doctor Modal Listeners
+  const openDoctorBtn = document.getElementById("open-add-doctor-btn");
+  const closeDoctorBtn = document.getElementById("close-doctor-modal-btn");
+  const doctorModal = document.getElementById("doctor-modal");
+  const doctorForm = document.getElementById("doctor-form");
+
+  window.openAddDoctorModal = function() {
+    const idEl = document.getElementById("doc-form-id");
+    const nameEl = document.getElementById("doc-form-name");
+    const specEl = document.getElementById("doc-form-specialty");
+    const contactEl = document.getElementById("doc-form-contact");
+    const photoEl = document.getElementById("doc-form-photo");
+    const titleEl = document.getElementById("doctor-modal-title");
+
+    if (idEl) { idEl.value = `DOC-0${Object.keys(doctors).length + 1}`; idEl.readOnly = false; }
+    if (nameEl) nameEl.value = "";
+    if (specEl) specEl.value = "General Medicine Lead";
+    if (contactEl) contactEl.value = "+91 98111 22330";
+    if (photoEl) photoEl.value = "";
+    if (titleEl) titleEl.innerHTML = `<i data-lucide="stethoscope" class="w-5 h-5 text-cyan-600"></i> Add Doctor to Directory`;
+    if (doctorModal) doctorModal.classList.remove("hidden");
+    if (window.lucide) lucide.createIcons();
+  };
+
+  if (openDoctorBtn) openDoctorBtn.addEventListener("click", window.openAddDoctorModal);
+  if (closeDoctorBtn && doctorModal) closeDoctorBtn.addEventListener("click", () => doctorModal.classList.add("hidden"));
+
+  if (doctorForm) {
+    doctorForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const dId = document.getElementById("doc-form-id")?.value.trim().toUpperCase() || "DOC-04";
+      const dName = document.getElementById("doc-form-name")?.value.trim() || "Dr. Medical Lead";
+      const dSpec = document.getElementById("doc-form-specialty")?.value.trim() || "Critical Care Specialist";
+      const dContact = document.getElementById("doc-form-contact")?.value.trim() || "+91 98111 22330";
+      const dPhoto = document.getElementById("doc-form-photo")?.value.trim() || "";
+
+      const newDocObj = { doc_id: dId, name: dName, specialty: dSpec, contact: dContact, status: "", photo_url: dPhoto };
+      doctors[dId] = newDocObj;
+      renderDoctorsGrid();
+
+      if (isDbConnected) {
+        try {
+          await fetch(`${API_BASE_URL}/doctors`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(newDocObj)
+          });
+          await fetchDoctorsFromDatabase();
+        } catch (err) { console.warn(err); }
+      }
+
+      if (doctorModal) doctorModal.classList.add("hidden");
+      doctorForm.reset();
+      alert(`Success: ${dName} saved to Doctors Directory!`);
     });
   }
 }
@@ -404,13 +495,69 @@ function setupEventListeners() {
 function openEditNurseModal(nurseId) {
   const n = nurses[nurseId];
   if (!n) return;
-  document.getElementById("nurse-form-id").value = n.nurse_id;
+  const idEl = document.getElementById("nurse-form-id");
+  if (idEl) { idEl.value = n.nurse_id; idEl.readOnly = true; }
   document.getElementById("nurse-form-name").value = n.name;
   document.getElementById("nurse-form-shift").value = n.shift;
-  document.getElementById("nurse-form-status").value = n.status;
+  document.getElementById("nurse-form-status").value = n.status || "On Duty";
   document.getElementById("nurse-form-contact").value = n.contact;
+  const photoInput = document.getElementById("nurse-form-photo");
+  if (photoInput) photoInput.value = n.photo_url || "";
   document.getElementById("nurse-modal-title").innerHTML = `<i data-lucide="edit" class="w-5 h-5 text-cyan-600"></i> Edit Nurse Record`;
   document.getElementById("nurse-modal").classList.remove("hidden");
+  if (window.lucide) lucide.createIcons();
+}
+
+async function triggerDeleteNurse(nurseId) {
+  const n = nurses[nurseId];
+  const name = n ? n.name : nurseId;
+  if (!confirm(`Are you sure you want to delete profile for ${name}?`)) return;
+
+  if (isDbConnected) {
+    try {
+      await fetch(`${API_BASE_URL}/nurses/${nurseId}`, { method: "DELETE" });
+      await fetchNursesFromDatabase();
+      alert(`Nurse ${name} profile deleted successfully.`);
+      return;
+    } catch (e) { console.error(e); }
+  }
+
+  delete nurses[nurseId];
+  renderNurseRoster();
+  populateNurseSelectDropdown();
+}
+
+function openEditDoctorModal(docId) {
+  const d = doctors[docId];
+  if (!d) return;
+  const idEl = document.getElementById("doc-form-id");
+  if (idEl) { idEl.value = d.doc_id; idEl.readOnly = true; }
+  document.getElementById("doc-form-name").value = d.name;
+  document.getElementById("doc-form-specialty").value = d.specialty;
+  document.getElementById("doc-form-contact").value = d.contact;
+  const photoInput = document.getElementById("doc-form-photo");
+  if (photoInput) photoInput.value = d.photo_url || "";
+  document.getElementById("doctor-modal-title").innerHTML = `<i data-lucide="edit" class="w-5 h-5 text-cyan-600"></i> Edit Doctor Record`;
+  document.getElementById("doctor-modal").classList.remove("hidden");
+  if (window.lucide) lucide.createIcons();
+}
+
+async function triggerDeleteDoctor(docId) {
+  const d = doctors[docId];
+  const name = d ? d.name : docId;
+  if (!confirm(`Are you sure you want to delete profile for ${name}?`)) return;
+
+  if (isDbConnected) {
+    try {
+      await fetch(`${API_BASE_URL}/doctors/${docId}`, { method: "DELETE" });
+      await fetchDoctorsFromDatabase();
+      alert(`Doctor ${name} profile deleted successfully.`);
+      return;
+    } catch (e) { console.error(e); }
+  }
+
+  delete doctors[docId];
+  renderDoctorsGrid();
 }
 
 function populateBedSelectDropdown() {
@@ -632,11 +779,11 @@ function renderBedCards() {
       const bannerTitleEl = document.getElementById("alert-title");
       if (bannerTitleEl) {
         if (criticalBed.status === "EMPTY") {
-          bannerTitleEl.innerHTML = `Saline Bottle Empty (0.0 ml remaining) — Immediate Replacement Required!`;
+          bannerTitleEl.innerHTML = `IV Bottle Empty (0.0 ml remaining) — Immediate Replacement Required!`;
         } else if (criticalBed.status === "BLOCKED") {
           bannerTitleEl.innerHTML = `Infusion Line Blocked/Occluded — Immediate Nurse Intervention Required!`;
         } else {
-          bannerTitleEl.innerHTML = `Low Saline Warning (${cVol} ml remaining) — Estimated Empty in <span class="text-rose-600 font-extrabold underline">${cTte < 900 ? cTte + ' Minutes' : 'N/A'}</span>`;
+          bannerTitleEl.innerHTML = `Low IV Fluid Warning (${cVol} ml remaining) — Estimated Empty in <span class="text-rose-600 font-extrabold underline">${cTte < 900 ? cTte + ' Minutes' : 'N/A'}</span>`;
         }
       }
 
@@ -663,11 +810,13 @@ function renderNurseRoster() {
     Object.values(nurses).forEach(n => {
       const card = document.createElement("div");
       card.className = "p-3 bg-slate-50 border border-slate-200/80 rounded-2xl flex items-center justify-between text-xs";
+      const photoHtml = n.photo_url 
+        ? `<img src="${n.photo_url}" class="w-8 h-8 rounded-full object-cover border border-cyan-400 shadow-2xs">`
+        : `<div class="w-8 h-8 rounded-full bg-cyan-100 text-cyan-700 font-bold flex items-center justify-center text-xs shadow-xs">${n.name.replace('Nurse ', '').charAt(0)}</div>`;
+
       card.innerHTML = `
         <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-full bg-cyan-100 text-cyan-700 font-bold flex items-center justify-center text-xs shadow-xs">
-            ${n.name.replace('Nurse ', '').charAt(0)}
-          </div>
+          ${photoHtml}
           <div>
             <h4 class="font-bold text-slate-900">${n.name}</h4>
             <p class="text-[10px] text-slate-500">${n.shift}</p>
@@ -675,7 +824,8 @@ function renderNurseRoster() {
         </div>
         <div class="flex items-center gap-2">
           <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold ${n.status === 'On Duty' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}">${n.status}</span>
-          <button onclick="openEditNurseModal('${n.nurse_id}')" class="text-slate-400 hover:text-cyan-600"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button>
+          <button onclick="openEditNurseModal('${n.nurse_id}')" class="text-slate-400 hover:text-cyan-600 p-1"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button>
+          <button onclick="triggerDeleteNurse('${n.nurse_id}')" class="text-slate-400 hover:text-rose-600 p-1"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
         </div>
       `;
       sidebarContainer.appendChild(card);
@@ -686,21 +836,28 @@ function renderNurseRoster() {
     container.innerHTML = "";
     Object.values(nurses).forEach(n => {
       const card = document.createElement("div");
-      card.className = "card-3d p-6 space-y-3";
+      card.className = "card-3d p-5 space-y-3";
+      const photoHtml = n.photo_url 
+        ? `<img src="${n.photo_url}" class="w-11 h-11 rounded-full object-cover border-2 border-cyan-500 shadow shrink-0">`
+        : `<div class="w-11 h-11 rounded-full bg-cyan-600 text-white font-extrabold flex items-center justify-center text-sm shadow shrink-0">${n.name.replace('Nurse ', '').charAt(0)}</div>`;
+
       card.innerHTML = `
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-full bg-cyan-600 text-white font-extrabold flex items-center justify-center text-sm shadow">
-              ${n.name.replace('Nurse ', '').charAt(0)}
-            </div>
-            <div>
-              <h3 class="font-extrabold text-slate-900 text-sm">${n.name}</h3>
-              <p class="text-xs text-slate-500">${n.nurse_id}</p>
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex items-center gap-2.5 min-w-0">
+            ${photoHtml}
+            <div class="min-w-0">
+              <h3 class="font-extrabold text-slate-900 text-sm truncate leading-snug">${n.name}</h3>
+              <p class="text-xs text-slate-500 font-mono truncate">${n.nurse_id}</p>
             </div>
           </div>
-          <button onclick="openEditNurseModal('${n.nurse_id}')" class="btn-3d px-3 py-1 text-xs font-bold text-cyan-600 bg-cyan-50 rounded-xl border border-cyan-200 hover:bg-cyan-100 flex items-center gap-1">
-            <i data-lucide="edit" class="w-3.5 h-3.5"></i> Edit
-          </button>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button onclick="openEditNurseModal('${n.nurse_id}')" class="btn-3d px-2.5 py-1 text-xs font-bold text-cyan-600 bg-cyan-50 rounded-xl border border-cyan-200 hover:bg-cyan-100 flex items-center gap-1 shadow-2xs">
+              <i data-lucide="edit" class="w-3.5 h-3.5"></i> Edit
+            </button>
+            <button onclick="triggerDeleteNurse('${n.nurse_id}')" title="Delete Profile" class="btn-3d px-2 py-1 text-xs font-bold text-rose-600 bg-rose-50 rounded-xl border border-rose-200 hover:bg-rose-100 flex items-center gap-1 shadow-2xs">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
         </div>
         <div class="text-xs space-y-1.5 text-slate-600 pt-3 border-t border-slate-100">
           <div>Shift: <strong class="text-slate-800">${n.shift}</strong></div>
@@ -725,20 +882,28 @@ function renderPatientsTable() {
     const flow = b.flow_rate_mlm !== undefined ? b.flow_rate_mlm : 4.6;
 
     tr.innerHTML = `
-      <td class="py-3 px-4 font-bold text-cyan-600">${b.bed_id}</td>
-      <td class="py-3 px-4 font-bold text-slate-900">${b.patient_name}</td>
-      <td class="py-3 px-4 text-slate-500">${b.age_gender || '45/M'}</td>
-      <td class="py-3 px-4 text-slate-600">${b.room_no || 'ICU Ward'}</td>
-      <td class="py-3 px-4 text-slate-600">${b.fluid_type}</td>
-      <td class="py-3 px-4 font-mono font-bold">${vol.toFixed(1)} ml</td>
-      <td class="py-3 px-4 font-mono font-bold text-cyan-600">${flow.toFixed(1)} ml/m</td>
-      <td class="py-3 px-4 text-slate-700">${b.doctor_name || 'Dr. Petra'}</td>
-      <td class="py-3 px-4 text-cyan-700 font-semibold">${b.assigned_nurse || 'Nurse Aishani'}</td>
-      <td class="py-3 px-4"><span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold ${b.status === 'NORMAL' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${b.status}</span></td>
-      <td class="py-3 px-4 text-right">
-        <button onclick="triggerResetBottle('${b.bed_id}')" class="text-cyan-600 font-bold hover:underline mr-2">Full</button>
-        <button onclick="triggerTareHook('${b.bed_id}')" class="text-amber-600 font-bold hover:underline mr-2">Tare</button>
-        <button onclick="triggerDischargeBed('${b.bed_id}')" class="text-rose-600 font-bold hover:underline">Discharge</button>
+      <td class="py-3 px-4 font-bold text-cyan-600 whitespace-nowrap">${b.bed_id}</td>
+      <td class="py-3 px-4 font-bold text-slate-900 whitespace-nowrap">${b.patient_name}</td>
+      <td class="py-3 px-4 text-slate-500 whitespace-nowrap">${b.age_gender || '45/M'}</td>
+      <td class="py-3 px-4 text-slate-600 whitespace-nowrap">${b.room_no || 'ICU Ward'}</td>
+      <td class="py-3 px-4 text-slate-600 whitespace-nowrap">${b.fluid_type}</td>
+      <td class="py-3 px-4 font-mono font-bold whitespace-nowrap">${vol.toFixed(1)} ml</td>
+      <td class="py-3 px-4 font-mono font-bold text-cyan-600 whitespace-nowrap">${flow.toFixed(1)} ml/m</td>
+      <td class="py-3 px-4 text-slate-700 whitespace-nowrap">${b.doctor_name || 'Dr. Petra'}</td>
+      <td class="py-3 px-4 text-cyan-700 font-semibold whitespace-nowrap">${b.assigned_nurse || 'Nurse Aishani'}</td>
+      <td class="py-3 px-4 whitespace-nowrap"><span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold ${b.status === 'NORMAL' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">${b.status}</span></td>
+      <td class="py-3 px-4 text-right whitespace-nowrap">
+        <div class="inline-flex items-center gap-1.5 justify-end">
+          <button onclick="triggerResetBottle('${b.bed_id}')" title="Set 100% Full Bottle" class="btn-3d px-2.5 py-1 text-xs font-bold text-cyan-700 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 rounded-lg flex items-center gap-1 shadow-2xs">
+            <i data-lucide="rotate-ccw" class="w-3 h-3"></i> Full
+          </button>
+          <button onclick="triggerTareHook('${b.bed_id}')" title="Zero Tare (0.0g Empty Hook)" class="btn-3d px-2.5 py-1 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg flex items-center gap-1 shadow-2xs">
+            <i data-lucide="scale" class="w-3 h-3"></i> Tare
+          </button>
+          <button onclick="triggerDischargeBed('${b.bed_id}')" title="Discharge Patient" class="btn-3d px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg flex items-center gap-1 shadow-2xs">
+            <i data-lucide="trash-2" class="w-3 h-3"></i> Discharge
+          </button>
+        </div>
       </td>
     `;
     tbody.appendChild(tr);
@@ -751,20 +916,29 @@ function renderDoctorsGrid() {
   container.innerHTML = "";
   Object.values(doctors).forEach(d => {
     const card = document.createElement("div");
-    card.className = "card-3d p-6 space-y-3";
+    card.className = "card-3d p-5 space-y-3";
+    const photoSrc = d.photo_url || "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=120&auto=format&fit=crop&q=80";
+
     card.innerHTML = `
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <img src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=100&auto=format&fit=crop&q=80" class="w-10 h-10 rounded-full object-cover border-2 border-cyan-500 shadow-sm">
-          <div>
-            <h3 class="font-extrabold text-slate-900 text-sm">${d.name}</h3>
-            <p class="text-xs text-cyan-600 font-bold">${d.specialty}</p>
+      <div class="flex items-start justify-between gap-2">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <img src="${photoSrc}" class="w-11 h-11 rounded-full object-cover border-2 border-cyan-500 shadow-sm shrink-0" onerror="this.src='https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=120&auto=format&fit=crop&q=80'">
+          <div class="min-w-0">
+            <h3 class="font-extrabold text-slate-900 text-sm truncate leading-snug">${d.name}</h3>
+            <p class="text-xs text-cyan-600 font-bold truncate">${d.specialty}</p>
           </div>
         </div>
-        <span class="px-2.5 py-1 rounded-full text-xs font-bold ${d.status === 'Available' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${d.status}</span>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button onclick="openEditDoctorModal('${d.doc_id}')" class="btn-3d px-2.5 py-1 text-xs font-bold text-cyan-600 bg-cyan-50 rounded-xl border border-cyan-200 hover:bg-cyan-100 flex items-center gap-1 shadow-2xs">
+            <i data-lucide="edit" class="w-3.5 h-3.5"></i> Edit
+          </button>
+          <button onclick="triggerDeleteDoctor('${d.doc_id}')" title="Delete Profile" class="btn-3d px-2 py-1 text-xs font-bold text-rose-600 bg-rose-50 rounded-xl border border-rose-200 hover:bg-rose-100 flex items-center gap-1 shadow-2xs">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
       </div>
       <div class="text-xs space-y-1 text-slate-600 pt-3 border-t border-slate-100">
-        <div>Doctor ID: <strong class="text-slate-800">${d.doc_id}</strong></div>
+        <div>Doctor ID: <strong class="text-slate-800 font-mono">${d.doc_id}</strong></div>
         <div>Contact: <strong class="text-slate-800">${d.contact}</strong></div>
       </div>
     `;
@@ -1132,7 +1306,7 @@ function initChart() {
     data: {
       labels: chartHistoryData.labels,
       datasets: [{
-        label: "Saline Volume (ml)",
+        label: "IV Fluid Volume (ml)",
         data: chartHistoryData.volumes,
         borderColor: "#0284c7",
         backgroundColor: "rgba(2, 132, 199, 0.08)",
@@ -1147,14 +1321,37 @@ function initChart() {
       responsive: true,
       maintainAspectRatio: false,
       scales: {
-        x: { grid: { color: "#f1f5f9" }, ticks: { color: "#64748b", fontSize: 10 } },
-        y: { grid: { color: "#f1f5f9" }, ticks: { color: "#64748b", fontSize: 10 }, title: { display: true, text: "Volume (ml)", color: "#94a3b8" } }
+        x: {
+          grid: { color: "#f1f5f9" },
+          ticks: {
+            color: "#64748b",
+            font: { size: 10, family: "'Plus Jakarta Sans', sans-serif" },
+            maxRotation: 0,
+            autoSkip: true
+          }
+        },
+        y: {
+          grid: { color: "#f1f5f9" },
+          ticks: {
+            color: "#64748b",
+            font: { size: 10, family: "'Plus Jakarta Sans', sans-serif" }
+          },
+          title: { display: true, text: "Volume (ml)", color: "#94a3b8" }
+        }
       },
       plugins: { legend: { display: false } }
     }
   });
 
   resetChartData();
+}
+
+// Helper to get responsive sliding window limit for time-series chart
+function getResponsiveChartLimit() {
+  const w = window.innerWidth;
+  if (w < 640) return 5;       // Mobile screens: exactly 5 sliding timestamps
+  if (w < 1024) return 7;      // Tablet screens: exactly 7 sliding timestamps
+  return 20;                   // Laptop & Desktop screens: 20 timestamps
 }
 
 function resetChartData() {
@@ -1164,8 +1361,9 @@ function resetChartData() {
   const now = new Date();
   const v = selected.current_volume_ml !== undefined ? selected.current_volume_ml : 500;
   const rate = selected.flow_rate_mlm !== undefined ? selected.flow_rate_mlm : 4.6;
+  const limit = getResponsiveChartLimit();
 
-  for (let i = 10; i >= 0; i--) {
+  for (let i = limit - 1; i >= 0; i--) {
     const timeStr = new Date(now.getTime() - i * 5000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     chartHistoryData.labels.push(timeStr);
     chartHistoryData.volumes.push(v + i * (rate / 12));
@@ -1183,11 +1381,13 @@ function updateChartData() {
   const selected = beds[activeSelectedBed] || Object.values(beds)[0];
   const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const v = selected.current_volume_ml !== undefined ? selected.current_volume_ml : 0;
+  const limit = getResponsiveChartLimit();
 
   chartHistoryData.labels.push(timeStr);
   chartHistoryData.volumes.push(v);
 
-  if (chartHistoryData.labels.length > 20) {
+  // Maintain sliding window tailored to device screen size (5 for mobile, 7 for tablet, 20 for laptop)
+  while (chartHistoryData.labels.length > limit) {
     chartHistoryData.labels.shift();
     chartHistoryData.volumes.shift();
   }
@@ -1374,5 +1574,10 @@ window.saveHardwareSettings = saveHardwareSettings;
 window.testBlynkConnection = testBlynkConnection;
 window.downloadCSVReport = downloadCSVReport;
 window.acknowledgeAlert = acknowledgeAlert;
+window.openAddNurseModal = window.openAddNurseModal;
 window.openEditNurseModal = openEditNurseModal;
+window.triggerDeleteNurse = triggerDeleteNurse;
+window.openAddDoctorModal = window.openAddDoctorModal;
+window.openEditDoctorModal = openEditDoctorModal;
+window.triggerDeleteDoctor = triggerDeleteDoctor;
 window.handleGlobalSearch = handleGlobalSearch;

@@ -12,54 +12,62 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="stylesheet" href="styles.css">
 </head>
-<body class="bg-slate-100 text-slate-800 h-screen flex overflow-hidden">
+<body class="bg-slate-100 text-slate-800 h-screen flex flex-col md:flex-row overflow-hidden">
 
-  <!-- Fixed Left Sidebar Navigation (PrepPilot Glass Aesthetic) -->
-  <aside class="w-64 bg-white/70 backdrop-blur-xl border-r border-white/80 p-5 flex flex-col justify-between hidden md:flex shrink-0 h-full z-30 shadow-xl shadow-slate-900/5">
+  <!-- Mobile & Tablet Drawer Backdrop Overlay -->
+  <div id="mobile-drawer-backdrop" onclick="toggleMobileMenu(false)" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-40 hidden lg:hidden transition-opacity"></div>
+
+  <!-- Left Sidebar Navigation (Desktop Fixed & Mobile/Tablet Slide-out Drawer) -->
+  <aside id="main-sidebar" class="fixed inset-y-0 left-0 -translate-x-full lg:translate-x-0 lg:static w-72 lg:w-64 bg-white/95 lg:bg-white/70 backdrop-blur-2xl lg:backdrop-blur-xl border-r border-slate-200/80 lg:border-white/80 p-5 flex flex-col justify-between shrink-0 h-full z-50 transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-xl lg:shadow-slate-900/5">
     <div class="space-y-6">
-      <!-- Brand Logo -->
-      <div class="flex items-center gap-3 px-2">
-        <div class="p-2.5 bg-gradient-to-tr from-cyan-600 to-sky-500 text-white rounded-2xl shadow-lg shadow-cyan-600/25">
-          <i data-lucide="activity" class="w-5 h-5"></i>
+      <!-- Brand Logo & Drawer Close Button -->
+      <div class="flex items-center justify-between px-2">
+        <div class="flex items-center gap-3">
+          <div class="p-2.5 bg-gradient-to-tr from-cyan-600 to-sky-500 text-white rounded-2xl shadow-lg shadow-cyan-600/25">
+            <i data-lucide="activity" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h1 class="text-xl font-extrabold text-slate-900 tracking-tight">
+              Flowguard-AI
+            </h1>
+            <p class="text-[11px] font-bold text-cyan-600 uppercase tracking-wider">3D Spatial Triage</p>
+          </div>
         </div>
-        <div>
-          <h1 class="text-xl font-extrabold text-slate-900 tracking-tight">
-            Flowguard-AI
-          </h1>
-          <p class="text-[11px] font-bold text-cyan-600 uppercase tracking-wider">3D Spatial Triage</p>
-        </div>
+        <button onclick="toggleMobileMenu(false)" class="lg:hidden p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
       </div>
 
       <!-- Navigation Links (Pill Style) -->
-      <nav class="space-y-2 text-sm font-semibold">
-        <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-active w-full flex items-center gap-3 px-4 py-3 transition text-left">
+      <nav class="space-y-1.5 text-sm font-semibold">
+        <button onclick="switchTab('dashboard'); toggleMobileMenu(false);" id="nav-dashboard" class="nav-active w-full flex items-center gap-3 px-4 py-3 transition text-left">
           <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
         </button>
-        <button onclick="switchTab('patients')" id="nav-patients" class="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-white/60 transition text-left">
+        <button onclick="switchTab('patients'); toggleMobileMenu(false);" id="nav-patients" class="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-white/60 transition text-left">
           <i data-lucide="bed" class="w-4 h-4 text-cyan-600"></i> Patients & Beds
         </button>
-        <button onclick="switchTab('nurses')" id="nav-nurses" class="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-white/60 transition text-left">
+        <button onclick="switchTab('nurses'); toggleMobileMenu(false);" id="nav-nurses" class="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-white/60 transition text-left">
           <i data-lucide="users" class="w-4 h-4 text-cyan-600"></i> Nurse Duty Roster
         </button>
-        <button onclick="switchTab('doctors')" id="nav-doctors" class="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-white/60 transition text-left">
+        <button onclick="switchTab('doctors'); toggleMobileMenu(false);" id="nav-doctors" class="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-white/60 transition text-left">
           <i data-lucide="stethoscope" class="w-4 h-4 text-cyan-600"></i> Doctors Directory
         </button>
-        <button onclick="switchTab('alerts')" id="nav-alerts" class="w-full flex items-center justify-between px-4 py-3 text-slate-600 hover:bg-white/60 transition text-left">
+        <button onclick="switchTab('alerts'); toggleMobileMenu(false);" id="nav-alerts" class="w-full flex items-center justify-between px-4 py-3 text-slate-600 hover:bg-white/60 transition text-left">
           <div class="flex items-center gap-3">
             <i data-lucide="bell" class="w-4 h-4 text-cyan-600"></i> Triage Alerts
           </div>
           <span class="bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-xs" id="sidebar-alert-badge">1</span>
         </button>
-        <button onclick="switchTab('analytics')" id="nav-analytics" class="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-white/60 transition text-left">
+        <button onclick="switchTab('analytics'); toggleMobileMenu(false);" id="nav-analytics" class="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-white/60 transition text-left">
           <i data-lucide="bar-chart-3" class="w-4 h-4 text-emerald-600"></i> Analytics & Reports
         </button>
-        <button onclick="switchTab('settings')" id="nav-settings" class="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-white/60 transition text-left">
+        <button onclick="switchTab('settings'); toggleMobileMenu(false);" id="nav-settings" class="w-full flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-white/60 transition text-left">
           <i data-lucide="settings" class="w-4 h-4 text-slate-400"></i> Hardware Setup
         </button>
       </nav>
     </div>
 
-    <div class="pt-4 border-t border-white/60 space-y-3">
+    <div class="pt-4 border-t border-slate-200/80 lg:border-white/60 space-y-3">
       <div class="p-3 bg-white/70 rounded-2xl border border-white/90 flex items-center gap-3 shadow-xs">
         <img src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=100&auto=format&fit=crop&q=80" class="w-9 h-9 rounded-full object-cover border-2 border-cyan-500 shadow-sm" alt="Dr. Petra Winburry">
         <div class="truncate">
@@ -77,44 +85,57 @@
   <!-- Main Content Column -->
   <div class="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
 
-    <!-- Fixed Top Header Bar -->
-    <header class="bg-white/70 backdrop-blur-xl border-b border-white/80 px-6 py-3.5 flex items-center justify-between shrink-0 z-20 shadow-2xs">
-      <div class="flex items-center gap-4 flex-1 max-w-md">
-        <div class="relative w-full">
-          <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <input type="text" id="global-search-input" onkeyup="handleGlobalSearch(this.value)" placeholder="Search patients, bed numbers, doctors, nurses..." class="w-full bg-white/80 border border-white/90 text-slate-800 text-xs rounded-full pl-9 pr-4 py-2.5 focus:ring-2 focus:ring-cyan-500 outline-none shadow-xs">
+    <!-- Top Header Bar (With Expandable Search & Sliding Action Bar) -->
+    <header class="bg-white/90 backdrop-blur-xl border-b border-slate-200/80 lg:border-white/80 px-3.5 sm:px-4 lg:px-6 py-2.5 flex flex-col xl:flex-row items-stretch xl:items-center justify-between shrink-0 z-20 shadow-2xs gap-2.5">
+      
+      <!-- Row 1: Drawer Toggle & Animated Expandable Search Input -->
+      <div class="flex items-center gap-2.5 w-full xl:w-auto xl:flex-1 min-w-0">
+        <button onclick="toggleMobileMenu(true)" class="lg:hidden p-2 text-slate-600 hover:text-cyan-600 bg-white border border-slate-200 rounded-xl shadow-xs shrink-0" title="Open Navigation Menu">
+          <i data-lucide="menu" class="w-5 h-5"></i>
+        </button>
+
+        <div id="search-container" class="relative flex-1 transition-all duration-300 ease-in-out max-w-full xl:max-w-md focus-within:xl:max-w-lg">
+          <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+          <input type="text" id="global-search-input" onkeyup="handleGlobalSearch(this.value)" placeholder="Search beds, patients, staff..." class="w-full bg-slate-50/80 focus:bg-white border border-slate-200/90 text-slate-800 text-xs sm:text-sm rounded-full pl-9 pr-4 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-400 outline-none shadow-xs transition-all duration-200">
         </div>
       </div>
 
-      <div class="flex items-center gap-3">
-        <!-- Blynk Live Status Badge & Quick Settings -->
-        <button onclick="switchTab('settings')" id="blynk-status-badge" class="btn-3d px-3.5 py-2 rounded-full text-xs font-semibold border border-slate-200 bg-white/80 text-slate-700 hover:bg-white flex items-center gap-2 shadow-2xs" title="Click to view or edit Blynk Auth Code">
-          <span class="w-2.5 h-2.5 rounded-full bg-slate-400" id="blynk-status-dot"></span>
+      <!-- Row 2 / Controls: Sliding Horizontal Carousel on Mobile/Tablet -->
+      <div class="header-action-scroll flex items-center gap-2 overflow-x-auto py-1 px-1 scrollbar-none w-full xl:w-auto shrink-0 touch-pan-x">
+        <!-- Blynk Live Status Badge -->
+        <button onclick="switchTab('settings')" id="blynk-status-badge" class="btn-3d px-3.5 py-1.5 md:py-2 rounded-full text-xs font-semibold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 flex items-center gap-1.5 shadow-2xs shrink-0 whitespace-nowrap" title="Click to view or edit Blynk Auth Code">
+          <span class="w-2.5 h-2.5 rounded-full bg-slate-400 shrink-0" id="blynk-status-dot"></span>
           <span id="blynk-status-text">Blynk: Not Configured</span>
         </button>
 
-        <button id="toggle-sound-btn" class="btn-3d px-4 py-2 rounded-full text-xs font-semibold border border-white/80 bg-white/80 text-slate-700 hover:bg-white flex items-center gap-1.5 shadow-2xs">
-          <i data-lucide="volume-2" class="w-3.5 h-3.5 text-cyan-600" id="sound-icon"></i>
-          <span id="sound-text">Audio: Continuous ON</span>
+        <!-- Audio Chime Toggle Button -->
+        <button id="toggle-sound-btn" class="btn-3d px-3.5 py-1.5 md:py-2 rounded-full text-xs font-semibold border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 flex items-center gap-1.5 shadow-2xs shrink-0 whitespace-nowrap" title="Toggle Alarm Sound">
+          <i data-lucide="volume-2" class="w-4 h-4 text-cyan-600 shrink-0" id="sound-icon"></i>
+          <span id="sound-text">Audio: ON</span>
         </button>
 
-        <button onclick="downloadCSVReport()" class="btn-3d px-4 py-2 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 hover:bg-emerald-100 flex items-center gap-1.5 shadow-2xs">
-          <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> Export Excel/CSV
+        <!-- Export CSV Button -->
+        <button onclick="downloadCSVReport()" class="btn-3d px-3.5 py-1.5 md:py-2 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 hover:bg-emerald-100 flex items-center gap-1.5 shadow-2xs shrink-0 whitespace-nowrap">
+          <i data-lucide="file-spreadsheet" class="w-4 h-4 shrink-0"></i>
+          <span>Export CSV</span>
         </button>
 
-        <button id="open-add-patient-btn" class="btn-3d px-5 py-2 rounded-full text-xs font-extrabold bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-md shadow-cyan-600/25 flex items-center gap-1.5">
-          <i data-lucide="user-plus" class="w-4 h-4"></i> Admit Patient
+        <!-- Admit Patient Action Button -->
+        <button id="open-add-patient-btn" class="btn-3d px-4 py-1.5 md:py-2 rounded-full text-xs font-extrabold bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-md shadow-cyan-600/25 flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+          <i data-lucide="user-plus" class="w-4 h-4 shrink-0"></i>
+          <span>+ Admit Patient</span>
         </button>
 
-        <button id="toggle-sim-btn" class="btn-3d px-4 py-2 rounded-full text-xs font-semibold border border-cyan-200/80 bg-cyan-50/80 text-cyan-700 hover:bg-cyan-100 flex items-center gap-1.5 shadow-2xs">
-          <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
-          <span id="sim-mode-text">Mode: Live Simulation</span>
+        <!-- Simulation Toggle Button -->
+        <button id="toggle-sim-btn" class="btn-3d px-3.5 py-1.5 md:py-2 rounded-full text-xs font-semibold border border-cyan-200/80 bg-cyan-50/80 text-cyan-700 hover:bg-cyan-100 flex items-center gap-1.5 shadow-2xs shrink-0 whitespace-nowrap">
+          <i data-lucide="sparkles" class="w-3.5 h-3.5 shrink-0"></i>
+          <span id="sim-mode-text">Simulation</span>
         </button>
       </div>
     </header>
 
-    <!-- Scrollable Main Content Container -->
-    <div class="flex-1 overflow-y-auto p-6 space-y-6">
+    <!-- Scrollable Main Content Container with Generous Bottom Clearance for Bottom Nav -->
+    <div class="flex-1 overflow-y-auto px-4 py-5 sm:p-6 pb-28 lg:pb-8 space-y-6">
 
       <!-- PAGE VIEW 1: DASHBOARD -->
       <main id="view-dashboard" class="page-view space-y-6 max-w-7xl mx-auto w-full">
@@ -144,15 +165,15 @@
             <div class="p-3.5 bg-emerald-50 text-emerald-600 rounded-2xl shadow-sm"><i data-lucide="droplet" class="w-6 h-6"></i></div>
           </div>
 
-          <div class="card-3d p-5 flex items-center justify-between">
+          <div onclick="switchTab('alerts')" class="card-3d p-5 flex items-center justify-between cursor-pointer hover:border-rose-300 transition group" title="Click to view Live Triage Alerts">
             <div>
-              <span class="text-xs font-semibold text-slate-400 block mb-1">Occlusions / Alerts</span>
+              <span class="text-xs font-semibold text-slate-400 block mb-1 group-hover:text-rose-600 transition">Occlusions / Alerts</span>
               <div class="flex items-baseline gap-2">
                 <span class="text-3xl font-extrabold text-rose-600" id="stat-critical-alerts">1</span>
                 <span class="text-[11px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">Requires Nurse</span>
               </div>
             </div>
-            <div class="p-3.5 bg-rose-50 text-rose-600 rounded-2xl shadow-sm"><i data-lucide="alert-circle" class="w-6 h-6"></i></div>
+            <div class="p-3.5 bg-rose-50 text-rose-600 rounded-2xl shadow-sm group-hover:bg-rose-100 transition"><i data-lucide="alert-circle" class="w-6 h-6"></i></div>
           </div>
 
           <div class="card-3d p-5 flex items-center justify-between">
@@ -170,7 +191,7 @@
 
         <!-- Priority Triage Banner -->
         <section id="triage-banner" class="card-3d bg-rose-50/90 border-rose-300 p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div class="flex items-center gap-3.5">
+          <div onclick="switchTab('alerts')" class="flex items-center gap-3.5 cursor-pointer flex-1" title="Click to open Alerts Center">
             <div class="p-3 bg-rose-600 text-white rounded-2xl shadow-lg shadow-rose-600/30 animate-pulse">
               <i data-lucide="alert-triangle" class="w-6 h-6"></i>
             </div>
@@ -180,28 +201,31 @@
                 <span class="text-xs font-bold text-slate-600" id="banner-bed-id">Bed ICU-02</span>
               </div>
               <h2 class="text-sm font-bold text-slate-900 mt-0.5" id="alert-title">
-                Low Saline Warning (22.0 ml remaining) — Estimated Empty in <span class="text-rose-600 font-extrabold underline">4 Minutes</span>
+                Low IV Fluid Warning (22.0 ml remaining) — Estimated Empty in <span class="text-rose-600 font-extrabold underline">4 Minutes</span>
               </h2>
             </div>
           </div>
           <div class="flex items-center gap-2 w-full md:w-auto justify-end">
+            <button onclick="switchTab('alerts')" class="btn-3d px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl shadow-2xs flex items-center gap-1.5">
+              <i data-lucide="shield-alert" class="w-3.5 h-3.5 text-rose-600"></i> View Alerts
+            </button>
             <button onclick="triggerResetBottle('ICU-02')" class="btn-3d px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-2xl shadow-md flex items-center gap-1.5">
               <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Set New Bottle (100%)
             </button>
           </div>
         </section>
 
-        <!-- Main Dashboard Content: Ward IV Saline Monitoring Grid & Chart -->
+        <!-- Main Dashboard Content: Ward IV Fluid Monitoring Grid & Chart -->
         <div class="space-y-6">
 
-          <!-- Saline Monitoring Grid -->
+          <!-- IV Fluid Monitoring Grid -->
           <div class="glass-panel p-6 space-y-4">
             <div class="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <h3 class="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                  <i data-lucide="bed" class="w-5 h-5 text-cyan-600"></i> Ward IV Saline Monitoring Grid
+                  <i data-lucide="bed" class="w-5 h-5 text-cyan-600"></i> Ward IV Fluid Monitoring Grid
                 </h3>
-                <p class="text-xs text-slate-500">1 ESP32 Hardware Node = 1 Saline Bed = 1 Blynk Auth Code</p>
+                <p class="text-xs text-slate-500">1 ESP32 Hardware Node = 1 Patient Bed = 1 Blynk Auth Code</p>
               </div>
               <span class="text-xs text-slate-400 font-medium flex items-center gap-1.5">
                 <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm animate-pulse"></span> Live Telemetry Active
@@ -215,7 +239,7 @@
             <div class="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <h3 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                  <i data-lucide="line-chart" class="w-4 h-4 text-cyan-600"></i> Time-Series Saline Volume Curve (ml)
+                  <i data-lucide="line-chart" class="w-4 h-4 text-cyan-600"></i> Time-Series IV Fluid Volume Curve (ml)
                 </h3>
                 <p class="text-xs text-slate-500">Real-time load cell measurements vs flow rate (ml/min)</p>
               </div>
@@ -284,7 +308,7 @@
           </button>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="nurses-full-grid">
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5" id="nurses-full-grid">
         </div>
       </main>
 
@@ -297,9 +321,12 @@
             </h2>
             <p class="text-xs text-slate-500">Medical specialists overseeing IV fluid therapy and ICU wards</p>
           </div>
+          <button id="open-add-doctor-btn" onclick="openAddDoctorModal()" class="btn-3d px-4 py-2.5 bg-cyan-600 text-white rounded-2xl font-bold text-xs shadow-md">
+            + Add Doctor to Staff
+          </button>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="doctors-full-grid">
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5" id="doctors-full-grid">
         </div>
       </main>
 
@@ -450,11 +477,40 @@
       </main>
 
     </div>
+
+    <!-- Mobile & Tablet Bottom Navigation Bar (Persistent Pill Bar) -->
+    <nav class="lg:hidden fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-2xl border-t border-slate-200/90 z-30 px-3 py-2 flex items-center justify-around shadow-lg">
+      <button onclick="switchTab('dashboard')" id="mob-nav-dashboard" class="flex flex-col items-center gap-1 text-cyan-600 font-bold text-[10px] py-1 px-2.5 rounded-xl transition">
+        <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+        <span>Ward</span>
+      </button>
+      <button onclick="switchTab('patients')" id="mob-nav-patients" class="flex flex-col items-center gap-1 text-slate-500 font-bold text-[10px] py-1 px-2.5 rounded-xl transition">
+        <i data-lucide="bed" class="w-4 h-4"></i>
+        <span>Beds</span>
+      </button>
+      <button onclick="switchTab('alerts')" id="mob-nav-alerts" class="relative flex flex-col items-center gap-1 text-slate-500 font-bold text-[10px] py-1 px-2.5 rounded-xl transition">
+        <i data-lucide="bell" class="w-4 h-4"></i>
+        <span>Alerts</span>
+        <span class="absolute 0 top-0.5 right-1 w-2 h-2 rounded-full bg-rose-500"></span>
+      </button>
+      <button onclick="switchTab('nurses')" id="mob-nav-nurses" class="flex flex-col items-center gap-1 text-slate-500 font-bold text-[10px] py-1 px-2.5 rounded-xl transition">
+        <i data-lucide="users" class="w-4 h-4"></i>
+        <span>Nurses</span>
+      </button>
+      <button onclick="switchTab('doctors')" id="mob-nav-doctors" class="flex flex-col items-center gap-1 text-slate-500 font-bold text-[10px] py-1 px-2.5 rounded-xl transition">
+        <i data-lucide="stethoscope" class="w-4 h-4"></i>
+        <span>Doctors</span>
+      </button>
+      <button onclick="switchTab('settings')" id="mob-nav-settings" class="flex flex-col items-center gap-1 text-slate-500 font-bold text-[10px] py-1 px-2.5 rounded-xl transition">
+        <i data-lucide="settings" class="w-4 h-4"></i>
+        <span>Setup</span>
+      </button>
+    </nav>
   </div>
 
   <!-- Admit Patient Modal -->
-  <div id="patient-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="card-3d bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+  <div id="patient-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3 sm:p-4">
+    <div class="card-3d modal-dialog bg-white border border-slate-200 rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between border-b border-slate-100 pb-3">
         <h3 class="font-bold text-slate-900 flex items-center gap-2">
           <i data-lucide="user-plus" class="w-5 h-5 text-cyan-600"></i> Admit New Patient & Assign Bed Node
@@ -499,23 +555,24 @@
             <input type="text" id="form-room-no" required placeholder="ICU Room 201" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-cyan-500 outline-none">
           </div>
           <div>
-            <label class="block font-semibold text-slate-700 mb-1">Fluid Type & Standard Size</label>
-            <select id="form-fluid-type" onchange="const m = this.value.match(/(\d+)ml/); if(m) document.getElementById('form-full-volume').value = m[1];" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-cyan-500 outline-none">
-              <option value="Saline 0.9% (500ml)">Saline 0.9% (500ml)</option>
-              <option value="Saline 0.9% (100ml)">Saline 0.9% (100ml Pediatric)</option>
-              <option value="Saline 0.9% (250ml)">Saline 0.9% (250ml)</option>
-              <option value="Dextrose 5% (500ml)">Dextrose 5% (500ml)</option>
-              <option value="Dextrose 5% (250ml)">Dextrose 5% (250ml)</option>
-              <option value="Ringer's Lactate (1000ml)">Ringer's Lactate (1000ml)</option>
-              <option value="Blood Transfusion (350ml)">Blood Transfusion (350ml)</option>
-              <option value="Custom Infusion">Custom Infusion</option>
-            </select>
+            <label class="block font-semibold text-slate-700 mb-1">IV Fluid Type / Solution</label>
+            <input type="text" id="form-fluid-type" list="fluid-type-suggestions" placeholder="e.g. Normal Saline 0.9%, Dextrose 5%, Ringer's Lactate" value="Normal Saline 0.9%" required class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-cyan-500 outline-none">
+            <datalist id="fluid-type-suggestions">
+              <option value="Normal Saline 0.9%">
+              <option value="Dextrose 5% in Water (D5W)">
+              <option value="Ringer's Lactate (RL)">
+              <option value="Dextrose Normal Saline (DNS)">
+              <option value="Packed Red Blood Cells (PRBC)">
+              <option value="Fresh Frozen Plasma (FFP)">
+              <option value="Potassium Chloride Infusion">
+              <option value="Custom Pediatric Solution">
+            </datalist>
           </div>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block font-semibold text-slate-700 mb-1">Full Volume Capacity (ml)</label>
-            <input type="number" id="form-full-volume" value="500" min="10" max="5000" required class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-cyan-500 outline-none font-bold">
+            <label class="block font-semibold text-slate-700 mb-1">Full Bottle Capacity (ml)</label>
+            <input type="number" id="form-full-volume" value="500" min="10" max="10000" step="any" required placeholder="e.g. 100, 250, 500, 1000" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-cyan-500 outline-none font-bold">
           </div>
           <div>
             <label class="block font-semibold text-slate-700 mb-1">Blynk Auth Token</label>
@@ -532,8 +589,8 @@
   </div>
 
   <!-- Add / Edit Nurse Modal -->
-  <div id="nurse-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="card-3d bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+  <div id="nurse-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3 sm:p-4">
+    <div class="card-3d modal-dialog bg-white border border-slate-200 rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between border-b border-slate-100 pb-3">
         <h3 class="font-bold text-slate-900 flex items-center gap-2" id="nurse-modal-title">
           <i data-lucide="user-check" class="w-5 h-5 text-cyan-600"></i> Add / Edit Nurse Record
@@ -570,13 +627,63 @@
             </select>
           </div>
         </div>
-        <div>
-          <label class="block font-semibold text-slate-700 mb-1">Contact Phone</label>
-          <input type="text" id="nurse-form-contact" placeholder="+91 98765 43210" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-cyan-500 outline-none">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Contact Phone</label>
+            <input type="text" id="nurse-form-contact" placeholder="+91 98765 43210" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-cyan-500 outline-none">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Photo URL (Optional)</label>
+            <input type="url" id="nurse-form-photo" placeholder="https://..." class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-cyan-500 outline-none">
+          </div>
         </div>
         <div class="pt-2">
           <button type="submit" class="btn-3d w-full py-3 bg-cyan-600 hover:bg-cyan-700 text-white font-extrabold text-xs rounded-2xl shadow-md">
             Save Nurse to Roster
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add / Edit Doctor Modal -->
+  <div id="doctor-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3 sm:p-4">
+    <div class="card-3d modal-dialog bg-white border border-slate-200 rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="font-bold text-slate-900 flex items-center gap-2" id="doctor-modal-title">
+          <i data-lucide="stethoscope" class="w-5 h-5 text-cyan-600"></i> Add / Edit Doctor Record
+        </h3>
+        <button id="close-doctor-modal-btn" class="text-slate-400 hover:text-slate-600 p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="doctor-form" class="space-y-3 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Doctor Identifier (e.g. DOC-04)</label>
+          <input type="text" id="doc-form-id" required placeholder="DOC-04" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-cyan-500 outline-none font-bold font-mono">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Doctor Full Name</label>
+          <input type="text" id="doc-form-name" required placeholder="Dr. Suresh Nair" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-cyan-500 outline-none font-semibold">
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Specialty / Department</label>
+          <input type="text" id="doc-form-specialty" required placeholder="Intensive Care Unit (ICU)" value="Intensive Care Unit (ICU)" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-cyan-500 outline-none">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Contact Phone</label>
+            <input type="text" id="doc-form-contact" placeholder="+91 98111 22330" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-cyan-500 outline-none">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Photo URL (Optional)</label>
+            <input type="url" id="doc-form-photo" placeholder="https://..." class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:ring-2 focus:ring-cyan-500 outline-none">
+          </div>
+        </div>
+        <div class="pt-2">
+          <button type="submit" class="btn-3d w-full py-3 bg-cyan-600 hover:bg-cyan-700 text-white font-extrabold text-xs rounded-2xl shadow-md">
+            Save Doctor Record to Directory
           </button>
         </div>
       </form>

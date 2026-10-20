@@ -264,3 +264,96 @@ nav button:hover:not(.nav-active) {
     transform: translateY(0);
   }
 }
+
+/* ===================================================
+   RESPONSIVE DESIGN SYSTEM (MOBILE, TABLET & DESKTOP)
+   =================================================== */
+
+/* Smooth touch scrolling */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* --- Header Action Sliding Row (Mobile/Tablet Touch Carousel) --- */
+.header-action-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.header-action-scroll::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+/* Expandable search input animation */
+#search-container input:focus {
+  transform: scale(1.02);
+  box-shadow: 0 4px 20px rgba(2, 132, 199, 0.22);
+  background-color: #ffffff;
+}
+
+/* Mobile Screens (< 640px) */
+@media (max-width: 639px) {
+  #search-container input:focus {
+    transform: scale(1.01);
+  }
+
+  .card-3d, .glass-panel {
+    border-radius: 20px;
+    padding: 1rem !important;
+  }
+
+  /* Compact bottle & gauge to prevent horizontal squishing on narrow phones */
+  .iv-bottle-container {
+    width: 54px;
+    height: 98px;
+    border-radius: 12px 12px 20px 20px;
+  }
+
+  .glass-gauge-wrapper {
+    width: 64px;
+    height: 64px;
+  }
+
+  .glass-gauge-wrapper svg {
+    width: 3.5rem;
+    height: 3.5rem;
+  }
+
+  /* Compact stats in bed cards */
+  .bed-card-item .grid-cols-2 {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+
+  /* Ensure modal fits comfortably on small screens with scroll */
+  .modal-dialog {
+    max-height: 90vh;
+    overflow-y: auto;
+    margin: 1rem;
+    padding: 1.25rem !important;
+  }
+
+  /* Tables horizontal scrolling indicator */
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+}
+
+/* Tablet Screens (640px - 1024px) */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .card-3d, .glass-panel {
+    border-radius: 22px;
+  }
+
+  .iv-bottle-container {
+    width: 60px;
+    height: 105px;
+  }
+}
+
+/* Touch friendly minimum tap target for buttons */
+button {
+  touch-action: manipulation;
+}

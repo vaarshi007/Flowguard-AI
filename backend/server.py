@@ -48,9 +48,15 @@ def init_db():
             shift TEXT DEFAULT 'Morning (07:00 - 15:00)',
             contact TEXT DEFAULT '',
             status TEXT DEFAULT 'On Duty',
-            assigned_beds_count INTEGER DEFAULT 0
+            assigned_beds_count INTEGER DEFAULT 0,
+            photo_url TEXT DEFAULT ''
         )
     """)
+    # Migration check for photo_url in nurses
+    cursor.execute("PRAGMA table_info(nurses)")
+    nurse_cols = [row[1] for row in cursor.fetchall()]
+    if "photo_url" not in nurse_cols:
+        cursor.execute("ALTER TABLE nurses ADD COLUMN photo_url TEXT DEFAULT ''")
 
     # Doctors Table
     cursor.execute("""
@@ -59,9 +65,15 @@ def init_db():
             name TEXT NOT NULL,
             specialty TEXT DEFAULT 'Intensive Care Unit (ICU)',
             contact TEXT DEFAULT '',
-            status TEXT DEFAULT 'Available'
+            status TEXT DEFAULT '',
+            photo_url TEXT DEFAULT ''
         )
     """)
+    # Migration check for photo_url and status in doctors
+    cursor.execute("PRAGMA table_info(doctors)")
+    doc_cols = [row[1] for row in cursor.fetchall()]
+    if "photo_url" not in doc_cols:
+        cursor.execute("ALTER TABLE doctors ADD COLUMN photo_url TEXT DEFAULT ''")
 
     # Beds & Patient Records Table
     cursor.execute("""
@@ -120,34 +132,34 @@ def init_db():
     cursor.execute("SELECT COUNT(*) FROM nurses")
     if cursor.fetchone()[0] == 0:
         default_nurses = [
-            ("NURSE-01", "Nurse Aishani", "Morning (07:00 - 15:00)", "+91 98765 43210", "On Duty", 2),
-            ("NURSE-02", "Nurse Tejaswini", "Evening (15:00 - 23:00)", "+91 98765 43211", "On Duty", 1),
-            ("NURSE-03", "Nurse Durga", "Night (23:00 - 07:00)", "+91 98765 43212", "On Standby", 0)
+            ("NURSE-01", "Nurse Aishani", "Morning (07:00 - 15:00)", "+91 98765 43210", "On Duty", 2, "https://images.unsplash.com/photo-1594824813588-e9f0d48123db?w=120&auto=format&fit=crop&q=80"),
+            ("NURSE-02", "Nurse Tejaswini", "Evening (15:00 - 23:00)", "+91 98765 43211", "On Duty", 1, "https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=120&auto=format&fit=crop&q=80"),
+            ("NURSE-03", "Nurse Durga", "Night (23:00 - 07:00)", "+91 98765 43212", "On Standby", 0, "https://images.unsplash.com/photo-1582750433449-648ed127bb54?w=120&auto=format&fit=crop&q=80")
         ]
         cursor.executemany("""
-            INSERT INTO nurses (nurse_id, name, shift, contact, status, assigned_beds_count)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO nurses (nurse_id, name, shift, contact, status, assigned_beds_count, photo_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """, default_nurses)
 
     # Seed Default Doctors if empty
     cursor.execute("SELECT COUNT(*) FROM doctors")
     if cursor.fetchone()[0] == 0:
         default_docs = [
-            ("DOC-01", "Dr. Petra Winburry", "Chief Intensivist (ICU)", "+91 98111 22334", "Available"),
-            ("DOC-02", "Dr. Rajesh Kumar", "General Medicine Lead", "+91 98111 22335", "In Surgery"),
-            ("DOC-03", "Dr. Ananya Roy", "Pediatric Care Specialist", "+91 98111 22336", "Available")
+            ("DOC-01", "Dr. Petra Winburry", "Chief Intensivist (ICU)", "+91 98111 22334", "", "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=120&auto=format&fit=crop&q=80"),
+            ("DOC-02", "Dr. Rajesh Kumar", "General Medicine Lead", "+91 98111 22335", "", "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=120&auto=format&fit=crop&q=80"),
+            ("DOC-03", "Dr. Ananya Roy", "Pediatric Care Specialist", "+91 98111 22336", "", "https://images.unsplash.com/photo-1594824813603-ee834c82d49b?w=120&auto=format&fit=crop&q=80")
         ]
         cursor.executemany("""
-            INSERT INTO doctors (doc_id, name, specialty, contact, status)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO doctors (doc_id, name, specialty, contact, status, photo_url)
+            VALUES (?, ?, ?, ?, ?, ?)
         """, default_docs)
 
     # Seed Clean Default Beds if empty
     cursor.execute("SELECT COUNT(*) FROM beds")
     if cursor.fetchone()[0] == 0:
         default_beds = [
-            ("ICU-01", "Unassigned Bed 01", "N/A", "Dr. Petra Winburry", "Nurse Aishani", "ICU Ward 101", "Saline 0.9% (500ml)", 500.0, 500.0, 100.0, 0.0, 999, "NORMAL", ""),
-            ("ICU-02", "Unassigned Bed 02", "N/A", "Dr. Petra Winburry", "Nurse Tejaswini", "ICU Ward 102", "Saline 0.9% (500ml)", 500.0, 500.0, 100.0, 0.0, 999, "NORMAL", "")
+            ("ICU-01", "Unassigned Bed 01", "N/A", "Dr. Petra Winburry", "Nurse Aishani", "ICU Ward 101", "Normal Saline 0.9%", 500.0, 500.0, 100.0, 0.0, 999, "NORMAL", ""),
+            ("ICU-02", "Unassigned Bed 02", "N/A", "Dr. Petra Winburry", "Nurse Tejaswini", "ICU Ward 102", "Normal Saline 0.9%", 500.0, 500.0, 100.0, 0.0, 999, "NORMAL", "")
         ]
         cursor.executemany("""
             INSERT INTO beds (bed_id, patient_name, age_gender, doctor_name, assigned_nurse, room_no, fluid_type, full_volume_ml, current_volume_ml, percentage, flow_rate_mlm, tte_minutes, status, blynk_token)
@@ -176,7 +188,16 @@ class NurseCreate(BaseModel):
     name: str
     shift: str
     contact: str
-    status: str = "On Duty"
+    status: Optional[str] = "On Duty"
+    photo_url: Optional[str] = ""
+
+class DoctorCreate(BaseModel):
+    doc_id: str
+    name: str
+    specialty: str
+    contact: str
+    status: Optional[str] = ""
+    photo_url: Optional[str] = ""
 
 class TelemetryIngest(BaseModel):
     bed_id: str
@@ -211,11 +232,11 @@ def add_or_update_nurse(nurse: NurseCreate):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO nurses (nurse_id, name, shift, contact, status)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO nurses (nurse_id, name, shift, contact, status, photo_url)
+        VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(nurse_id) DO UPDATE SET
-            name=excluded.name, shift=excluded.shift, contact=excluded.contact, status=excluded.status
-    """, (nurse.nurse_id, nurse.name, nurse.shift, nurse.contact, nurse.status))
+            name=excluded.name, shift=excluded.shift, contact=excluded.contact, status=excluded.status, photo_url=excluded.photo_url
+    """, (nurse.nurse_id, nurse.name, nurse.shift, nurse.contact, nurse.status or "On Duty", nurse.photo_url or ""))
     conn.commit()
     conn.close()
     return {"message": f"Nurse {nurse.name} saved successfully"}
@@ -226,12 +247,21 @@ def update_nurse(nurse_id: str, nurse: NurseCreate):
     cursor = conn.cursor()
     cursor.execute("""
         UPDATE nurses SET
-            name = ?, shift = ?, contact = ?, status = ?
+            name = ?, shift = ?, contact = ?, status = ?, photo_url = ?
         WHERE nurse_id = ?
-    """, (nurse.name, nurse.shift, nurse.contact, nurse.status, nurse_id))
+    """, (nurse.name, nurse.shift, nurse.contact, nurse.status or "On Duty", nurse.photo_url or "", nurse_id))
     conn.commit()
     conn.close()
     return {"message": f"Nurse {nurse_id} updated successfully"}
+
+@app.delete("/api/nurses/{nurse_id}")
+def delete_nurse(nurse_id: str):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM nurses WHERE nurse_id = ?", (nurse_id,))
+    conn.commit()
+    conn.close()
+    return {"message": f"Nurse {nurse_id} deleted successfully"}
 
 @app.get("/api/doctors")
 def get_doctors():
@@ -242,6 +272,42 @@ def get_doctors():
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+@app.post("/api/doctors")
+def add_or_update_doctor(doc: DoctorCreate):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO doctors (doc_id, name, specialty, contact, status, photo_url)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(doc_id) DO UPDATE SET
+            name=excluded.name, specialty=excluded.specialty, contact=excluded.contact, status=excluded.status, photo_url=excluded.photo_url
+    """, (doc.doc_id, doc.name, doc.specialty, doc.contact, doc.status or "", doc.photo_url or ""))
+    conn.commit()
+    conn.close()
+    return {"message": f"Doctor {doc.name} saved successfully"}
+
+@app.put("/api/doctors/{doc_id}")
+def update_doctor(doc_id: str, doc: DoctorCreate):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE doctors SET
+            name = ?, specialty = ?, contact = ?, status = ?, photo_url = ?
+        WHERE doc_id = ?
+    """, (doc.name, doc.specialty, doc.contact, doc.status or "", doc.photo_url or "", doc_id))
+    conn.commit()
+    conn.close()
+    return {"message": f"Doctor {doc_id} updated successfully"}
+
+@app.delete("/api/doctors/{doc_id}")
+def delete_doctor(doc_id: str):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM doctors WHERE doc_id = ?", (doc_id,))
+    conn.commit()
+    conn.close()
+    return {"message": f"Doctor {doc_id} deleted successfully"}
 
 @app.get("/api/beds")
 def get_all_beds():
@@ -290,7 +356,7 @@ def trigger_blynk_event_notification(token: str, alert_type: str, bed_id: str, v
     code_map = {
         "CRITICAL_LOW": ("critical_low", f"CRITICAL LOW: Bed {bed_id} fluid at {volume_ml:.1f}ml ({int((volume_ml/full_vol)*100)}%)!"),
         "BLOCKED": ("line_blocked", f"WARNING: Bed {bed_id} IV Line Occluded/Blocked! Flow rate stopped."),
-        "EMPTY": ("bottle_empty", f"EMERGENCY: Bed {bed_id} Saline Bottle Empty (0ml)! Replace bottle.")
+        "EMPTY": ("bottle_empty", f"EMERGENCY: Bed {bed_id} IV Bottle Empty (0ml)! Replace bottle.")
     }
     event_data = code_map.get(alert_type)
     if not event_data:
